@@ -102,5 +102,17 @@ def generate_taskspace_poses():
             ts_dict, yaml_file, default_flow_style=False, sort_keys=False
         )
 
-generate_joint_trajectory()
-generate_taskspace_poses()
+
+def generate_taskspace_graph():
+    pass
+
+
+def generate_taskspace_tour():
+    pass
+
+
+if __name__ == "__main__":
+    generate_joint_trajectory()
+    generate_taskspace_poses()
+    generate_taskspace_graph()
+    generate_taskspace_tour()
