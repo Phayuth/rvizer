@@ -12,7 +12,7 @@ import viser
 import yourdfpy
 from robot_descriptions.loaders.yourdfpy import load_robot_description
 
-from .core import EnhancedViserUrdf, Sphere, SphereStore, inject_spheres_into_urdf_xml
+from bubblify.core import EnhancedViserUrdf, Sphere, SphereStore, inject_spheres_into_urdf_xml
 
 
 class BubblifyApp:

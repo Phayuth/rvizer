@@ -1,11 +1,10 @@
 import os
 import shutil
 import subprocess
-from typing import Optional
 from pathlib import Path
 
 
-def _run_dialog_command(cmd: list[str]) -> Optional[str]:
+def _run_dialog_command(cmd):
     """Run a folder dialog command and return the selected path if successful."""
     try:
         proc = subprocess.run(
@@ -27,9 +26,7 @@ def _run_dialog_command(cmd: list[str]) -> Optional[str]:
     return os.path.abspath(os.path.expanduser(selected))
 
 
-def os_select_folder(
-    initial_dir: Optional[str] = None, title: str = "Select Folder"
-) -> str:
+def os_select_folder(initial_dir=None, title="Select Folder"):
     """Open a native folder picker without Tkinter.
 
     Falls back to terminal input when no GUI picker is available.
@@ -92,7 +89,7 @@ def os_select_folder(
     return typed_path
 
 
-def os_list_directory(directory) -> str:
+def os_list_directory(directory):
     try:
         entries = sorted(
             directory.iterdir(),
@@ -114,6 +111,26 @@ def os_list_directory(directory) -> str:
     content = "\n".join(lines)
 
     return content
+
+
+def os_open_directory(directory):
+    """Open the given directory in the system's file explorer."""
+    try:
+        if os.name == "nt":  # Windows
+            os.startfile(directory)
+        elif os.name == "posix":
+            if shutil.which("xdg-open"):  # Linux
+                subprocess.run(["xdg-open", directory])
+            elif shutil.which("open"):  # macOS
+                subprocess.run(["open", directory])
+            else:
+                print(
+                    f"Cannot open directory: {directory}. No suitable command found."
+                )
+        else:
+            print(f"Cannot open directory: {directory}. Unsupported OS.")
+    except Exception as exc:
+        print(f"Error opening directory {directory}: {exc}")
 
 
 if __name__ == "__main__":

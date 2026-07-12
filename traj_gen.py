@@ -116,3 +116,4 @@ if __name__ == "__main__":
     generate_taskspace_poses()
     generate_taskspace_graph()
     generate_taskspace_tour()
+    # generate_color_interp()

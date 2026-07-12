@@ -1,0 +1,37 @@
+robots:
+  - name: ur5e
+    urdf_path: /home/yuth/Resources/ur5e/ur5e_extract_calibrated_spherized.urdf
+    position: [0.0, 0.0, 0.0]
+    wxyz: [1.0, 0.0, 0.0, 0.0]
+    collision_show: true
+
+  - name: ur5e_ghost
+    urdf_path: /home/yuth/Resources/ur5e/ur5e_extract_calibrated_spherized.urdf
+    position: [0.0, 0.0, 0.0]
+    wxyz: [1.0, 0.0, 0.0, 0.0]
+    collision_show: false
+
+env_objects:
+  - name: shelf_1
+    urdf_path: /home/yuth/Resources/ur5e/shelf.urdf
+    position: [0.0, 0.75, 0.0]
+    wxyz: [0.0, 0.0, 0.0, 1.0]
+    collision_show: true
+
+  - name: shelf_2
+    urdf_path: /home/yuth/Resources/ur5e/shelf.urdf
+    position: [0.0, -0.75, 0.0]
+    wxyz: [1.0, 0.0, 0.0, 0.0]
+    collision_show: true
+
+  - name: shelf_3
+    urdf_path: /home/yuth/Resources/ur5e/shelf.urdf
+    position: [0.75, 0.0, 0.0]
+    wxyz: [0.70710678, 0.0, 0.0, 0.70710678]
+    collision_show: true
+
+  - name: plane
+    urdf_path: /home/yuth/Resources/ur5e/plane.urdf
+    position: [0.0, 0.0, 0.0]
+    wxyz: [1.0, 0.0, 0.0, 0.0]
+    collision_show: true

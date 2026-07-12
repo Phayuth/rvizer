@@ -1,3 +1,5 @@
+from http import client
+
 import numpy as np
 import viser
 import viser.transforms as tf
@@ -7,7 +9,8 @@ import threading
 import yaml
 from robot_descriptions.loaders.yourdfpy import load_robot_description
 from bubblify.core import EnhancedViserUrdf
-from rvizer.osutils import os_select_folder, os_list_directory
+from rvizer.osutils import os_select_folder, os_list_directory, os_open_directory
+from rvizer.guiutils import generate_color_interp
 from pathlib import Path
 
 
@@ -17,10 +20,11 @@ class RvizerApp:
         # Gui State
         self.srv = viser.ViserServer(port=port)
 
-        # Load URDF
+        # Robots
         self.urdf_paths = {}
         self.urdf_instances = {}
         self.urdf_vizs = {}
+        self.urdf_pose_origins = {}
 
         # Robot state
         self.traj = {}
@@ -28,10 +32,11 @@ class RvizerApp:
         self._traj_play_thread = None
         self._traj_slider_programmatic_update = False
 
-        # Scene state
-        self.scene_objects_path = {}
-        self.scene_objects = {}
-        self.scene_vizs = {}
+        # Environment Object
+        self.eo_paths = {}
+        self.eo_instances = {}
+        self.eo_vizs = {}
+        self.eo_pose_origins = {}
 
         # Task space state
         self.taskspace = None
@@ -41,28 +46,37 @@ class RvizerApp:
         self._setup_rvizer_config()
         self._setup_refgrid()
         self._setup_robot()
-        self._setup_scene()
+        self._setup_env()
         self._setup_taskspace()
-        self._setup_tf()
+        self._setup_taskspace_graph()
+        self._setup_utilities()
 
     def _setup_cwd(self):
         # gui handle
         with self.srv.gui.add_folder("Current Working Directory"):
-            tin = self.srv.gui.add_text("CWD", initial_value="/home/")
-            dirb = self.srv.gui.add_button("Open Directory")
+            t_cwd = self.srv.gui.add_text("CWD", initial_value="/home/")
+            btng_dir = self.srv.gui.add_button_group(
+                label="Action", options=("Select", "Open", "View")
+            )
+            btn_dirs = self.srv.gui.add_button("Select Directory")
+            btn_diro = self.srv.gui.add_button("Open Directory")
 
             with self.srv.gui.add_folder("Files in CWD"):
                 _cwd_files_text = self.srv.gui.add_markdown("_empty_")
 
         # interaction handle
-        @dirb.on_click
+        @btn_dirs.on_click
         def _(event: viser.GuiEvent) -> None:
             f = os_select_folder(initial_dir="/home/", title="Select Directory")
-            tin.value = f
+            t_cwd.value = f
             _cwd_files_text.content = os_list_directory(Path(f))
 
+        @btn_diro.on_click
+        def _(event: viser.GuiEvent) -> None:
+            os_open_directory(Path(t_cwd.value))
+
     def _setup_rvizer_config(self):
-        with self.srv.gui.add_folder("RVizer Config"):
+        with self.srv.gui.add_folder("RVizer Config", expand_by_default=False):
             self.srv.gui.add_button_group(
                 label="Save/Load", options=("Load", "Save")
             )
@@ -80,31 +94,35 @@ class RvizerApp:
         )
 
     def _setup_robot(self):
-        urdf_dict = {
-            "ur5e": "/home/yuth/Resources/ur5e/ur5e_extract_calibrated_spherized.urdf",
-            "ur5e_ghost": "/home/yuth/Resources/ur5e/ur5e_extract_calibrated_spherized.urdf",
-        }
-        show_collision = True
-        for r_name, urdf_path in urdf_dict.items():
-            root_node_name = f"/robot/{r_name}"
-            urdf = yourdfpy.URDF.load(
-                str(urdf_path),  # urdf_path,
+        fyaml = "scene.yaml"
+        with open(fyaml, "r") as yaml_file:
+            data = yaml.safe_load(yaml_file)
+
+        r_names = [d["name"] for d in data.get("robots", [])]
+        for i in range(len(r_names)):
+            r_name = r_names[i]
+            self.urdf_paths[r_name] = data["robots"][i]["urdf_path"]
+            self.urdf_instances[r_name] = yourdfpy.URDF.load(
+                str(self.urdf_paths[r_name]),
                 load_meshes=True,
                 build_scene_graph=True,
-                load_collision_meshes=show_collision,
-                build_collision_scene_graph=show_collision,
+                load_collision_meshes=True,
+                build_collision_scene_graph=True,
             )
-            urdf_viz = EnhancedViserUrdf(
+            self.urdf_vizs[r_name] = EnhancedViserUrdf(
                 self.srv,
-                urdf_or_path=urdf,
+                urdf_or_path=self.urdf_instances[r_name],
                 load_meshes=True,
-                load_collision_meshes=show_collision,
+                load_collision_meshes=True,
                 collision_mesh_color_override=(1.0, 0.0, 0.0, 0.4),
-                root_node_name=root_node_name,
+                root_node_name=f"/robot/{r_name}",
+                root_position=np.array(data["robots"][i]["position"]),
+                root_wxyz=np.array(data["robots"][i]["wxyz"]),
             )
-            self.urdf_paths[r_name] = urdf_path
-            self.urdf_instances[r_name] = urdf
-            self.urdf_vizs[r_name] = urdf_viz
+            self.urdf_pose_origins[r_name] = (
+                data["robots"][i]["position"],
+                data["robots"][i]["wxyz"],
+            )
 
         with self.srv.gui.add_folder("Robots"):
             # gui handle
@@ -153,6 +171,9 @@ class RvizerApp:
                     )
                     btng_players[r_name] = self.srv.gui.add_button_group(
                         label="Player", options=("Play", "Pause", "Reset")
+                    )
+                    self.srv.gui.add_dropdown(
+                        "Visibility", options=("Visual", "Collision", "Both")
                     )
 
             # Connect sliders to URDF update
@@ -339,150 +360,202 @@ class RvizerApp:
         self._traj_play_thread = threading.Thread(target=_run, daemon=True)
         self._traj_play_thread.start()
 
-    def _setup_scene(self):
-        """Set up the 3D scene with robot and other elements."""
+    def _setup_env(self):
+        fyaml = "scene.yaml"
+        with open(fyaml, "r") as yaml_file:
+            data = yaml.safe_load(yaml_file)
 
-        # xyz qxqyqzqw
-        shelf_tf = {
-            0: ((0, 0.75, 0), (0, 0, 1, 0), "id_0_"),
-            1: ((0, -0.75, 0), (0, 0, 0, 1), "id_1_"),
-            2: ((0.75, 0, 0), (0, 0, 0.5, 0.5), "id_2_"),
-        }
+        eo_names = [d["name"] for d in data.get("env_objects", [])]
+        for i in range(len(eo_names)):
+            eo_name = eo_names[i]
+            self.eo_paths[eo_name] = data["env_objects"][i]["urdf_path"]
+            self.eo_instances[eo_name] = yourdfpy.URDF.load(
+                str(self.eo_paths[eo_name]),
+                load_meshes=True,
+                build_scene_graph=True,
+                load_collision_meshes=True,
+                build_collision_scene_graph=True,
+            )
+            self.eo_vizs[eo_name] = EnhancedViserUrdf(
+                self.srv,
+                urdf_or_path=self.eo_instances[eo_name],
+                load_meshes=True,
+                load_collision_meshes=True,
+                collision_mesh_color_override=(1.0, 0.0, 0.0, 0.4),
+                root_node_name=f"/env_objects/{eo_name}",
+                root_position=np.array(data["env_objects"][i]["position"]),
+                root_wxyz=np.array(data["env_objects"][i]["wxyz"]),
+            )
+            self.eo_pose_origins[eo_name] = (
+                data["env_objects"][i]["position"],
+                data["env_objects"][i]["wxyz"],
+            )
 
-        urdf_path = "/home/yuth/Resources/ur5e/shelf.urdf"
-        show_collision = True
-        urdf1 = yourdfpy.URDF.load(
-            str(urdf_path),  # urdf_path,
-            load_meshes=True,
-            build_scene_graph=True,
-            load_collision_meshes=show_collision,
-            build_collision_scene_graph=show_collision,
-        )
-        shelf_position = (0.0, 0.75, 0.0)
-        shelf_wxyz = (0.0, 0.0, 0.0, 1.0)  # qwqxqyqz
-        shelf_urdf_viz1 = EnhancedViserUrdf(
-            self.srv,
-            urdf_or_path=urdf1,
-            load_meshes=True,
-            load_collision_meshes=show_collision,
-            collision_mesh_color_override=(1.0, 0.0, 0.0, 0.4),
-            root_node_name="/scene/shelf",
-            root_position=shelf_position,
-            root_wxyz=shelf_wxyz,
-        )
+        # apply initial configuration
+        config = np.array([])  # no actuated joints = 0
+        for eo_name in self.eo_vizs:
+            self.eo_vizs[eo_name].update_cfg(config)
 
-        config = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
-        shelf_urdf_viz1.update_cfg(config)
-
-        urdf2 = yourdfpy.URDF.load(
-            str(urdf_path),  # urdf_path,
-            load_meshes=True,
-            build_scene_graph=True,
-            load_collision_meshes=show_collision,
-            build_collision_scene_graph=show_collision,
-        )
-        shelf_position2 = (0.0, -0.75, 0.0)
-        shelf_wxyz2 = (1.0, 0.0, 0.0, 0.0)
-        shelf_urdf_viz2 = EnhancedViserUrdf(
-            self.srv,
-            urdf_or_path=urdf2,
-            load_meshes=True,
-            load_collision_meshes=show_collision,
-            collision_mesh_color_override=(1.0, 0.0, 0.0, 0.4),
-            root_node_name="/scene/shelf2",
-            root_position=shelf_position2,
-            root_wxyz=shelf_wxyz2,
-        )
-        shelf_urdf_viz2.update_cfg(config)
-
-        urdf3 = yourdfpy.URDF.load(
-            str(urdf_path),  # urdf_path,
-            load_meshes=True,
-            build_scene_graph=True,
-            load_collision_meshes=show_collision,
-            build_collision_scene_graph=show_collision,
-        )
-        shelf_position3 = (0.75, 0.0, 0.0)
-        shelf_wxyz3 = tf.SO3.exp(np.array([0.0, 0.0, np.pi / 2.0])).wxyz
-        shelf_urdf_viz3 = EnhancedViserUrdf(
-            self.srv,
-            urdf_or_path=urdf3,
-            load_meshes=True,
-            load_collision_meshes=show_collision,
-            collision_mesh_color_override=(1.0, 0.0, 0.0, 0.4),
-            root_node_name="/scene/shelf3",
-            root_position=shelf_position3,
-            root_wxyz=shelf_wxyz3,
-        )
-        shelf_urdf_viz3.update_cfg(config)
+        # gui handle
+        with self.srv.gui.add_folder("Environment Objects"):
+            dd_int = self.srv.gui.add_dropdown(
+                label="Instances",
+                options=eo_names,
+            )
+            dd_v = self.srv.gui.add_dropdown(
+                "Visibility", options=("Visual", "Collision", "Both")
+            )
 
     def _setup_taskspace(self):
         with self.srv.gui.add_folder("Task Space"):
+            # gui handle
+            btng_tslad = self.srv.gui.add_button_group(
+                label="Action", options=("Load", "Add", "Delete")
+            )
+            btng_tstour = self.srv.gui.add_button_group(
+                label="Tour", options=("Load", "View", "Hide")
+            )
+            sldr_tstour = self.srv.gui.add_slider(
+                label="Tour Progress",
+                min=0.0,
+                max=1.0,
+                step=0.01,
+                initial_value=0.0,
+            )
 
-            # parent_frame = self.server.scene.add_frame(
-            #     "/parent",
-            #     position=(0.0, 0.0, 1.0),
-            #     wxyz=tf.SO3.exp(np.array([0.0, 0.0, 0.0])).wxyz,
-            # )
-            # self.taskspace.append(parent_frame)
+            # interaction handle
+            ts_handles = []
 
-            loadtaskb = self.srv.gui.add_button("Load Task Space Frame")
-            addtaskb = self.srv.gui.add_button("Add Task Space Frame")
-            deltaskb = self.srv.gui.add_button("Delete Task Space Frame")
-
-            @loadtaskb.on_click
-            def _(event: viser.GuiEvent) -> None:
+            def _handle_btng_tslad(event: viser.GuiEvent) -> None:
                 client = event.client
-                assert client is not None
+                action = event.target.value
 
-                yaml_file_path = "taskspace_poses.yaml"  # Example path
-                standard, taskspace_poses = self._load_taskspace(yaml_file_path)
-                self.taskspace = {
-                    "standard": standard,
-                    "points": taskspace_poses,
-                    "N": taskspace_poses.shape[0],
-                    "dof": taskspace_poses.shape[1],
-                }
-                print(f"Loaded task space poses from {yaml_file_path}")
-
-                client.add_notification(
-                    title="Task Space Loaded",
-                    body="Task space poses have been successfully loaded from the YAML file.",
-                    auto_close_seconds=5,
-                    with_close_button=True,
-                )
-
-                # self.server.scene.add_a
-
-                for i in range(self.taskspace["N"]):
-                    pose = self.taskspace["points"][i]
-                    position = pose[:3]
-                    if standard == "xyz_qxqyqzqw":
-                        quat = np.array(
-                            [
-                                pose[6],
-                                pose[3],
-                                pose[4],
-                                pose[5],
-                            ]
-                        )  # Convert to wxyz
-                    else:
-                        quat = np.array([pose[3], pose[4], pose[5], pose[6]])
-                    frame_name = f"/task/task_frame_{i}"
-                    task_frame = self.srv.scene.add_frame(
-                        frame_name,
-                        position=position,
-                        wxyz=quat,
-                        axes_length=0.1,
-                        axes_radius=0.005,
+                if action == "Load":
+                    yaml_file_path = "taskspace_poses.yaml"  # Example path
+                    standard, taskspace_poses = self._load_taskspace(
+                        yaml_file_path
                     )
-                    # self.taskspace[f"frame_{i}"] = task_frame
+                    self.taskspace = {
+                        "standard": standard,
+                        "points": taskspace_poses,
+                        "N": taskspace_poses.shape[0],
+                        "dof": taskspace_poses.shape[1],
+                    }
 
-    def _setup_tf(self):
-        with self.srv.gui.add_folder("TF Frames"):
-            loadtfb = self.srv.gui.add_button("Load TF Frames")
-            addtfb = self.srv.gui.add_button("Add TF Frame")
-            deltfb = self.srv.gui.add_button("Delete TF Frame")
+                    client.add_notification(
+                        title="Task Space Loaded",
+                        body="Task space poses have been successfully loaded from the YAML file.",
+                        auto_close_seconds=5,
+                        with_close_button=True,
+                    )
+
+                    for i in range(self.taskspace["N"]):
+                        pose = self.taskspace["points"][i]
+                        position = pose[:3]
+                        if standard == "xyz_qxqyqzqw":
+                            quat = np.array(
+                                [
+                                    pose[6],
+                                    pose[3],
+                                    pose[4],
+                                    pose[5],
+                                ]
+                            )  # Convert to wxyz
+                        else:
+                            quat = np.array([pose[3], pose[4], pose[5], pose[6]])
+
+                        ts_h_ = self.srv.scene.add_frame(
+                            f"/task/tasks/frame_{i}",
+                            position=position,
+                            wxyz=quat,
+                            axes_length=0.1,
+                            axes_radius=0.005,
+                        )
+                        ts_handles.append(ts_h_)
+
+            btng_tslad.on_click(_handle_btng_tslad)
+
+            def _handle_btng_tstour(event: viser.GuiEvent) -> None:
+                client = event.client
+                action = event.target.value
+
+                if action == "Load":
+                    fyaml = "taskspace_poses_tour.yaml"
+                    with open(fyaml, "r") as yaml_file:
+                        data = yaml.safe_load(yaml_file)
+
+                    ts_position = []
+                    for i in range(len(ts_handles)):
+                        tsh = ts_handles[i]
+                        ts_position.append(tsh.position)
+
+                    points = np.array(ts_position).reshape(-1, 3)  # shape (N, 3)
+                    points = np.concatenate([points[:-1], points[1:]], axis=1)
+                    points = points.reshape(-1, 2, 3)  # shape (N-1, 2, 3)
+
+                    nn = points.shape[0] + 1
+                    colors = generate_color_interp(n=nn, m="rgb01")
+                    colors = np.array(colors)
+                    colors = np.concatenate([colors[:-1], colors[1:]], axis=1)
+                    colors = colors.reshape(-1, 2, 3)  # shape (N-1, 2, 3)
+
+                    self.srv.scene.add_line_segments(
+                        "/task/tour_order",
+                        points=points,
+                        colors=colors,
+                        line_width=5,
+                    )
+                    self.srv.scene.add_label(
+                        "/task/tour_start",
+                        text="Start",
+                        position=points[0, 0],
+                    )
+                    self.srv.scene.add_label(
+                        "/task/tour_end",
+                        text="End",
+                        position=points[-1, 1],
+                    )
+
+                    client.add_notification(
+                        title="Load Tour",
+                        body="Load tour successfully.",
+                        auto_close_seconds=5,
+                        with_close_button=True,
+                    )
+
+                    tour_sphere = self.srv.scene.add_icosphere(
+                        "/task/tour_sphere",
+                        position=points[0, 0],
+                        radius=0.03,
+                        color=(0.0, 1.0, 0.0),
+                    )
+
+                    def update_tour_sphere(value):
+                        idx = int(value)
+                        if 0 <= idx < nn:
+                            if idx < nn - 1:
+                                tour_sphere.position = points[idx, 0]
+                            else:
+                                tour_sphere.position = points[-1, 1]
+
+                    sldr_tstour.min = 0.0
+                    sldr_tstour.max = max(nn - 1, 0)
+                    sldr_tstour.step = 1.0
+                    sldr_tstour.value = 0.0
+                    sldr_tstour.on_update(
+                        lambda event: update_tour_sphere(event.target.value)
+                    )
+
+            btng_tstour.on_click(_handle_btng_tstour)
+
+    def _setup_taskspace_graph(self):
+        pass
+
+    def _setup_utilities(self):
+        with self.srv.gui.add_folder("Utilities", expand_by_default=False):
+            btn_tfv = self.srv.gui.add_button("TF Tree Viewer")
+            btn_tfa = self.srv.gui.add_button("TF Add")
+            btn_tfd = self.srv.gui.add_button("TF Delete")
 
     def run(self):
         """Run the application (blocking call)."""
@@ -495,7 +568,6 @@ class RvizerApp:
         finally:
             print("Server stopped.")
             # cleanup code if needed
-            pass
 
 
 if __name__ == "__main__":

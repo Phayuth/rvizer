@@ -9,4 +9,4 @@ debug_*
 
 # Virtual environments
 .venv
-.vscode
+.vscode/

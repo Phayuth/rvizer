@@ -77,6 +77,13 @@ def main() -> None:
             server.gui.add_slider(
                 "Roll", min=-180, max=180, step=1, initial_value=0
             )
+    with server.gui.add_folder("Camera Settings"):
+        server.gui.add_multi_slider(
+            "Field of View", min=30, max=120, step=1, initial_value=(60, 90)
+        )
+        server.gui.add_progress_bar(
+            1
+        )
 
     # Example 2: Scene objects organization
     with server.gui.add_folder("Scene Objects"):
