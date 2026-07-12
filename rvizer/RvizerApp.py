@@ -1,5 +1,3 @@
-from http import client
-
 import numpy as np
 import viser
 import viser.transforms as tf
@@ -7,11 +5,16 @@ import yourdfpy
 import time
 import threading
 import yaml
+from pathlib import Path
 from robot_descriptions.loaders.yourdfpy import load_robot_description
 from bubblify.core import EnhancedViserUrdf
 from rvizer.osutils import os_select_folder, os_list_directory, os_open_directory
-from rvizer.guiutils import generate_color_interp
-from pathlib import Path
+from rvizer.guiutils import (
+    gen_color_interp,
+    load_trajectory,
+    load_taskspace,
+    load_taskspace_tour,
+)
 
 
 class RvizerApp:
@@ -40,48 +43,55 @@ class RvizerApp:
 
         # Task space state
         self.taskspace = None
+        self.taskspace_tour = None
 
         # Gui Elements
         self._setup_cwd()
         self._setup_rvizer_config()
-        self._setup_refgrid()
         self._setup_robot()
         self._setup_env()
         self._setup_taskspace()
-        self._setup_taskspace_graph()
+        self._setup_rtsp()
         self._setup_utilities()
 
     def _setup_cwd(self):
-        # gui handle
         with self.srv.gui.add_folder("Current Working Directory"):
+            # gui handle
             t_cwd = self.srv.gui.add_text("CWD", initial_value="/home/")
             btng_dir = self.srv.gui.add_button_group(
                 label="Action", options=("Select", "Open", "View")
             )
-            btn_dirs = self.srv.gui.add_button("Select Directory")
-            btn_diro = self.srv.gui.add_button("Open Directory")
+            cwd_files = ""
 
-            with self.srv.gui.add_folder("Files in CWD"):
-                _cwd_files_text = self.srv.gui.add_markdown("_empty_")
+            def handle_btng_dir(event: viser.GuiEvent):
+                nonlocal cwd_files
+                action = event.target.value
 
-        # interaction handle
-        @btn_dirs.on_click
-        def _(event: viser.GuiEvent) -> None:
-            f = os_select_folder(initial_dir="/home/", title="Select Directory")
-            t_cwd.value = f
-            _cwd_files_text.content = os_list_directory(Path(f))
+                if action == "Select":
+                    f = os_select_folder(
+                        initial_dir="/home/", title="Select Directory"
+                    )
+                    t_cwd.value = f
+                    cwd_files = os_list_directory(Path(f))
 
-        @btn_diro.on_click
-        def _(event: viser.GuiEvent) -> None:
-            os_open_directory(Path(t_cwd.value))
+                elif action == "Open":
+                    os_open_directory(Path(t_cwd.value))
+
+                elif action == "View":
+                    with self.srv.gui.add_modal("Directory Contents") as modal:
+                        self.srv.gui.add_markdown(f"Directory: {t_cwd.value}")
+                        self.srv.gui.add_markdown(f"Contents:\n{cwd_files}")
+                        btn_close = self.srv.gui.add_button(
+                            "Close", icon=viser.Icon.MOUSE
+                        )
+
+                        @btn_close.on_click
+                        def _(_) -> None:
+                            modal.close()
+
+            btng_dir.on_click(handle_btng_dir)
 
     def _setup_rvizer_config(self):
-        with self.srv.gui.add_folder("RVizer Config", expand_by_default=False):
-            self.srv.gui.add_button_group(
-                label="Save/Load", options=("Load", "Save")
-            )
-
-    def _setup_refgrid(self):
         self.srv.scene.world_axes.visible = True
 
         self.srv.scene.add_grid(
@@ -92,6 +102,11 @@ class RvizerApp:
             cell_color=(200, 200, 200),
             cell_thickness=1.0,
         )
+
+        with self.srv.gui.add_folder("RVizer Config", expand_by_default=False):
+            self.srv.gui.add_button_group(
+                label="Save/Load", options=("Load", "Save")
+            )
 
     def _setup_robot(self):
         fyaml = "scene.yaml"
@@ -135,6 +150,19 @@ class RvizerApp:
             sldr_trajs = {}
             cb_loops = {}
             btng_players = {}
+            cb_viss = {}
+
+            def set_robot_visibility(r_name: str, mode: str) -> None:
+                urdf_viz = self.urdf_vizs[r_name]
+                if mode == "Visual":
+                    urdf_viz.show_visual = True
+                    urdf_viz.show_collision = False
+                elif mode == "Collision":
+                    urdf_viz.show_visual = False
+                    urdf_viz.show_collision = True
+                else:
+                    urdf_viz.show_visual = True
+                    urdf_viz.show_collision = True
 
             # interaction handle
             init_configs = {}
@@ -172,9 +200,16 @@ class RvizerApp:
                     btng_players[r_name] = self.srv.gui.add_button_group(
                         label="Player", options=("Play", "Pause", "Reset")
                     )
-                    self.srv.gui.add_dropdown(
-                        "Visibility", options=("Visual", "Collision", "Both")
+                    cb_viss[r_name] = self.srv.gui.add_dropdown(
+                        "Visibility",
+                        options=("Visual", "Collision", "Both"),
+                        initial_value="Visual",
                     )
+                    set_robot_visibility(r_name, cb_viss[r_name].value)
+
+                    @cb_viss[r_name].on_update
+                    def _(_, r_name=r_name):
+                        set_robot_visibility(r_name, cb_viss[r_name].value)
 
             # Connect sliders to URDF update
             def update_robot_config(r_name):
@@ -224,21 +259,12 @@ class RvizerApp:
                     client = event.client
                     assert client is not None
 
-                    yaml_file_path = "joint_trajectory.yaml"  # Example path
-                    joint_names, points, time_from_start = self._load_trajectory(
-                        yaml_file_path
-                    )
-                    self.traj = {
-                        "joint_names": joint_names,
-                        "N": points.shape[0],
-                        "points": points,
-                        "time_from_start": time_from_start,
-                        "dof": points.shape[1],
-                    }
+                    fyaml = "joint_trajectory.yaml"
+                    self.traj = load_trajectory(fyaml)
 
                     client.add_notification(
                         title=f"Trajectory Loaded for {r_name}",
-                        body=f"Trajectory has been successfully loaded from {yaml_file_path} ",
+                        body=f"Trajectory has been successfully loaded",
                         auto_close_seconds=5,
                         with_close_button=True,
                     )
@@ -289,21 +315,6 @@ class RvizerApp:
 
                 btng_players[r_name].on_click(handle_player_action)
 
-    def _load_trajectory(self, yaml_file_path):
-        with open(yaml_file_path, "r") as yaml_file:
-            traj_dict_rec = yaml.safe_load(yaml_file)
-        joint_names = traj_dict_rec["joint_names"]
-        points = np.array(traj_dict_rec["points"])
-        time_from_start = np.array(traj_dict_rec["time_from_start"])
-        return joint_names, points, time_from_start
-
-    def _load_taskspace(self, yaml_file_path):
-        with open(yaml_file_path, "r") as yaml_file:
-            ts_dict_rec = yaml.safe_load(yaml_file)
-        standard = ts_dict_rec["standard"]
-        taskspace_poses = np.array(ts_dict_rec["points"])
-        return standard, taskspace_poses
-
     def _stop_trajectory_playback(self):
         self._traj_play_stop.set()
         if (
@@ -314,7 +325,11 @@ class RvizerApp:
         self._traj_play_thread = None
 
     def _start_trajectory_playback(
-        self, trajslider, trajautoloop, update_robot_config, r_name
+        self,
+        trajslider,
+        trajautoloop,
+        update_robot_config,
+        r_name,
     ):
         if self.traj is None:
             return
@@ -398,29 +413,39 @@ class RvizerApp:
 
         # gui handle
         with self.srv.gui.add_folder("Environment Objects"):
+
+            def set_env_visibility(mode: str) -> None:
+                for eo_viz in self.eo_vizs.values():
+                    if mode == "Visual":
+                        eo_viz.show_visual = True
+                        eo_viz.show_collision = False
+                    elif mode == "Collision":
+                        eo_viz.show_visual = False
+                        eo_viz.show_collision = True
+                    else:
+                        eo_viz.show_visual = True
+                        eo_viz.show_collision = True
+
             dd_int = self.srv.gui.add_dropdown(
                 label="Instances",
                 options=eo_names,
             )
             dd_v = self.srv.gui.add_dropdown(
-                "Visibility", options=("Visual", "Collision", "Both")
+                "Visibility",
+                options=("Visual", "Collision", "Both"),
+                initial_value="Visual",
             )
+            set_env_visibility(dd_v.value)
+
+            @dd_v.on_update
+            def _(_):
+                set_env_visibility(dd_v.value)
 
     def _setup_taskspace(self):
         with self.srv.gui.add_folder("Task Space"):
             # gui handle
             btng_tslad = self.srv.gui.add_button_group(
                 label="Action", options=("Load", "Add", "Delete")
-            )
-            btng_tstour = self.srv.gui.add_button_group(
-                label="Tour", options=("Load", "View", "Hide")
-            )
-            sldr_tstour = self.srv.gui.add_slider(
-                label="Tour Progress",
-                min=0.0,
-                max=1.0,
-                step=0.01,
-                initial_value=0.0,
             )
 
             # interaction handle
@@ -431,20 +456,12 @@ class RvizerApp:
                 action = event.target.value
 
                 if action == "Load":
-                    yaml_file_path = "taskspace_poses.yaml"  # Example path
-                    standard, taskspace_poses = self._load_taskspace(
-                        yaml_file_path
-                    )
-                    self.taskspace = {
-                        "standard": standard,
-                        "points": taskspace_poses,
-                        "N": taskspace_poses.shape[0],
-                        "dof": taskspace_poses.shape[1],
-                    }
+                    fyaml = "taskspace_poses.yaml"  # Example path
+                    self.taskspace = load_taskspace(fyaml)
 
                     client.add_notification(
                         title="Task Space Loaded",
-                        body="Task space poses have been successfully loaded from the YAML file.",
+                        body="Task space poses have been successfully loaded.",
                         auto_close_seconds=5,
                         with_close_button=True,
                     )
@@ -452,15 +469,9 @@ class RvizerApp:
                     for i in range(self.taskspace["N"]):
                         pose = self.taskspace["points"][i]
                         position = pose[:3]
-                        if standard == "xyz_qxqyqzqw":
-                            quat = np.array(
-                                [
-                                    pose[6],
-                                    pose[3],
-                                    pose[4],
-                                    pose[5],
-                                ]
-                            )  # Convert to wxyz
+                        if self.taskspace["standard"] == "xyz_qxqyqzqw":
+                            # Convert to wxyz
+                            quat = np.array([pose[6], pose[3], pose[4], pose[5]])
                         else:
                             quat = np.array([pose[3], pose[4], pose[5], pose[6]])
 
@@ -475,26 +486,40 @@ class RvizerApp:
 
             btng_tslad.on_click(_handle_btng_tslad)
 
+    def _setup_rtsp(self):
+        with self.srv.gui.add_folder("RTSP"):
+            btng_tstour = self.srv.gui.add_button_group(
+                label="Tour", options=("Load", "Order", "View", "Hide")
+            )
+            sldr_tstour = self.srv.gui.add_slider(
+                label="Tour Progress",
+                min=0.0,
+                max=1.0,
+                step=0.01,
+                initial_value=0.0,
+            )
+
             def _handle_btng_tstour(event: viser.GuiEvent) -> None:
                 client = event.client
                 action = event.target.value
 
                 if action == "Load":
-                    fyaml = "taskspace_poses_tour.yaml"
-                    with open(fyaml, "r") as yaml_file:
-                        data = yaml.safe_load(yaml_file)
+                    # fyaml = "taskspace_poses_tour.yaml"
+                    # with open(fyaml, "r") as yaml_file:
+                    #     data = yaml.safe_load(yaml_file)
 
-                    ts_position = []
-                    for i in range(len(ts_handles)):
-                        tsh = ts_handles[i]
-                        ts_position.append(tsh.position)
+                    pose = self.taskspace["points"]
+                    ts_position = pose[:, :3]  # shape (N, 3)
+                    ts_tour = np.arange(len(ts_position))
+                    ts_position_in_tour = ts_position[ts_tour]  # shape (N, 3)
 
-                    points = np.array(ts_position).reshape(-1, 3)  # shape (N, 3)
+                    # line segments
+                    points = ts_position_in_tour.copy()
                     points = np.concatenate([points[:-1], points[1:]], axis=1)
                     points = points.reshape(-1, 2, 3)  # shape (N-1, 2, 3)
 
                     nn = points.shape[0] + 1
-                    colors = generate_color_interp(n=nn, m="rgb01")
+                    colors = gen_color_interp(n=nn, m="rgb01")
                     colors = np.array(colors)
                     colors = np.concatenate([colors[:-1], colors[1:]], axis=1)
                     colors = colors.reshape(-1, 2, 3)  # shape (N-1, 2, 3)
@@ -547,9 +572,6 @@ class RvizerApp:
                     )
 
             btng_tstour.on_click(_handle_btng_tstour)
-
-    def _setup_taskspace_graph(self):
-        pass
 
     def _setup_utilities(self):
         with self.srv.gui.add_folder("Utilities", expand_by_default=False):

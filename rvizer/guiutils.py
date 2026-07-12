@@ -1,7 +1,8 @@
 import numpy as np
+import yaml
 
 
-def generate_color_interp(n=12, s="#1e40af", e="#f97316", m="hex"):
+def gen_color_interp(n=12, s="#1e40af", e="#f97316", m="hex"):
     # LAB (CIE L*a*b*): Perceptually uniform
 
     def _hex_to_rgb01(hex_color):
@@ -102,9 +103,45 @@ def generate_color_interp(n=12, s="#1e40af", e="#f97316", m="hex"):
         ]
 
 
+def load_trajectory(path):
+    with open(path, "r") as yaml_file:
+        dict = yaml.safe_load(yaml_file)
+        joint_names = dict["joint_names"]
+        points = np.array(dict["points"])
+        time_from_start = np.array(dict["time_from_start"])
+        traj = {
+            "joint_names": joint_names,
+            "N": points.shape[0],
+            "points": points,
+            "time_from_start": time_from_start,
+            "dof": points.shape[1],
+        }
+        return traj
+
+
+def load_taskspace(path):
+    with open(path, "r") as yaml_file:
+        dict = yaml.safe_load(yaml_file)
+        standard = dict["standard"]
+        points = np.array(dict["points"])
+        taskspace = {
+            "standard": standard,
+            "N": points.shape[0],
+            "points": points,
+        }
+        return taskspace
+
+
+def load_taskspace_tour(path):
+    with open(path, "r") as yaml_file:
+        dict = yaml.safe_load(yaml_file)
+    tour_order = dict["tour_order"]
+    return tour_order
+
+
 if __name__ == "__main__":
-    colors = generate_color_interp(n=12)
+    colors = gen_color_interp(n=12)
     print(colors)
 
-    rgbbb = generate_color_interp(n=12, m="rgb255")
+    rgbbb = gen_color_interp(n=12, m="rgb255")
     print(rgbbb)

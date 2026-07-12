@@ -1,0 +1,7 @@
+config:
+  - name: "elbow_up"
+    joint_values: [0.0, -1.57, 1.57, 0.0, 0.0, 0.0]
+  - name: "elbow_down"
+    joint_values: [0.0, 1.57, -1.57, 0.0, 0.0, 0.0]
+  - name: "zeros"
+    joint_values: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
