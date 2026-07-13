@@ -135,8 +135,19 @@ def load_taskspace(path):
 def load_taskspace_tour(path):
     with open(path, "r") as yaml_file:
         dict = yaml.safe_load(yaml_file)
-    tour_order = dict["tour_order"]
-    return tour_order
+        standard = dict["standard"]
+        order = dict["order"]
+        is_points_ordered = dict["is_points_ordered"]
+        points = np.array(dict["points"])
+        N = points.shape[0]
+        taskspace_tour = {
+            "standard": standard,
+            "N": N,
+            "points": points,
+            "order": order,
+            "is_points_ordered": is_points_ordered,
+        }
+        return taskspace_tour
 
 
 if __name__ == "__main__":

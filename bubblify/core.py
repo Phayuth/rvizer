@@ -1,4 +1,5 @@
 """Core data structures and enhanced URDF visualizer for Bubblify."""
+
 import dataclasses
 import itertools
 import warnings
@@ -25,7 +26,9 @@ class Sphere:
     local_xyz: Tuple[float, float, float]
     radius: float
     color: Tuple[int, int, int] = (255, 180, 60)
-    node: Optional[viser.SceneNodeHandle] = dataclasses.field(default=None, repr=False)
+    node: Optional[viser.SceneNodeHandle] = dataclasses.field(
+        default=None, repr=False
+    )
 
 
 class SphereStore:
@@ -35,9 +38,16 @@ class SphereStore:
         self._next_id = itertools.count(0)
         self.by_id: Dict[int, Sphere] = {}
         self.ids_by_link: Dict[str, List[int]] = {}
-        self.group_nodes: Dict[str, viser.FrameHandle] = {}  # /spheres/<link> parents
+        self.group_nodes: Dict[str, viser.FrameHandle] = (
+            {}
+        )  # /spheres/<link> parents
 
-    def add(self, link: str, xyz: Tuple[float, float, float] = (0.0, 0.0, 0.0), radius: float = 0.05) -> Sphere:
+    def add(
+        self,
+        link: str,
+        xyz: Tuple[float, float, float] = (0.0, 0.0, 0.0),
+        radius: float = 0.05,
+    ) -> Sphere:
         """Add a new sphere to the specified link."""
         s = Sphere(id=next(self._next_id), link=link, local_xyz=xyz, radius=radius)
         self.by_id[s.id] = s
@@ -89,8 +99,12 @@ class EnhancedViserUrdf:
         root_node_name: str = "/",
         root_position: Tuple[float, float, float] | None = None,
         root_wxyz: Tuple[float, float, float, float] | None = None,
-        mesh_color_override: Tuple[float, float, float] | Tuple[float, float, float, float] | None = None,
-        collision_mesh_color_override: Tuple[float, float, float] | Tuple[float, float, float, float] | None = None,
+        mesh_color_override: (
+            Tuple[float, float, float] | Tuple[float, float, float, float] | None
+        ) = None,
+        collision_mesh_color_override: (
+            Tuple[float, float, float] | Tuple[float, float, float, float] | None
+        ) = None,
         load_meshes: bool = True,
         load_collision_meshes: bool = False,
     ) -> None:
@@ -160,7 +174,9 @@ class EnhancedViserUrdf:
                     "load_collision_meshes is enabled but the URDF model does not have a collision scene configured. Not displaying."
                 )
 
-        self._joint_map_values = [*self._urdf.joint_map.values()] * num_joints_to_repeat
+        self._joint_map_values = [
+            *self._urdf.joint_map.values()
+        ] * num_joints_to_repeat
 
     def _index_scene(self, scene: Scene, collision: bool) -> None:
         """Index link frames and meshes for per-link control."""
@@ -186,7 +202,9 @@ class EnhancedViserUrdf:
     @property
     def show_visual(self) -> bool:
         """Returns whether the visual meshes are currently visible."""
-        return self._visual_root_frame is not None and self._visual_root_frame.visible
+        return (
+            self._visual_root_frame is not None and self._visual_root_frame.visible
+        )
 
     @show_visual.setter
     def show_visual(self, visible: bool) -> None:
@@ -194,12 +212,17 @@ class EnhancedViserUrdf:
         if self._visual_root_frame is not None:
             self._visual_root_frame.visible = visible
         else:
-            warnings.warn("Cannot set `.show_visual`, since no visual meshes were loaded.")
+            warnings.warn(
+                "Cannot set `.show_visual`, since no visual meshes were loaded."
+            )
 
     @property
     def show_collision(self) -> bool:
         """Returns whether the collision meshes are currently visible."""
-        return self._collision_root_frame is not None and self._collision_root_frame.visible
+        return (
+            self._collision_root_frame is not None
+            and self._collision_root_frame.visible
+        )
 
     @show_collision.setter
     def show_collision(self, visible: bool) -> None:
@@ -207,14 +230,21 @@ class EnhancedViserUrdf:
         if self._collision_root_frame is not None:
             self._collision_root_frame.visible = visible
         else:
-            warnings.warn("Cannot set `.show_collision`, since no collision meshes were loaded.")
+            warnings.warn(
+                "Cannot set `.show_collision`, since no collision meshes were loaded."
+            )
 
-    def set_link_visible(self, link_name: str, visible: bool, which: str = "visual"):
+    def set_link_visible(
+        self, link_name: str, visible: bool, which: str = "visual"
+    ):
         """Set visibility of a specific link's meshes."""
         if which in ("visual", "both") and self._load_meshes:
             for mesh_handle in self.link_meshes.get(link_name, []):
                 mesh_handle.visible = visible
-        if which in ("collision", "both") and self._collision_root_frame is not None:
+        if (
+            which in ("collision", "both")
+            and self._collision_root_frame is not None
+        ):
             # Handle collision meshes if needed
             pass
 
@@ -230,14 +260,20 @@ class EnhancedViserUrdf:
         self._urdf.update_cfg(configuration)
         for joint, frame_handle in zip(self._joint_map_values, self._joint_frames):
             assert isinstance(joint, yourdfpy.Joint)
-            T_parent_child = self._urdf.get_transform(joint.child, joint.parent, collision_geometry=not self._load_meshes)
+            T_parent_child = self._urdf.get_transform(
+                joint.child, joint.parent, collision_geometry=not self._load_meshes
+            )
             frame_handle.wxyz = tf.SO3.from_matrix(T_parent_child[:3, :3]).wxyz
             frame_handle.position = T_parent_child[:3, 3] * self._scale
 
-    def get_actuated_joint_limits(self) -> dict[str, tuple[float | None, float | None]]:
+    def get_actuated_joint_limits(
+        self,
+    ) -> dict[str, tuple[float | None, float | None]]:
         """Returns an ordered mapping from actuated joint names to position limits."""
         out: dict[str, tuple[float | None, float | None]] = {}
-        for joint_name, joint in zip(self._urdf.actuated_joint_names, self._urdf.actuated_joints):
+        for joint_name, joint in zip(
+            self._urdf.actuated_joint_names, self._urdf.actuated_joints
+        ):
             assert isinstance(joint_name, str)
             assert isinstance(joint, yourdfpy.Joint)
             if joint.limit is None:
@@ -259,12 +295,16 @@ class EnhancedViserUrdf:
         scene: Scene,
         root_node_name: str,
         collision_geometry: bool,
-        mesh_color_override: Tuple[float, float, float] | Tuple[float, float, float, float] | None,
+        mesh_color_override: (
+            Tuple[float, float, float] | Tuple[float, float, float, float] | None
+        ),
     ) -> viser.FrameHandle:
         """Helper function to add joint frames and meshes to the ViserUrdf object."""
         prefix = "collision" if collision_geometry else "visual"
         prefixed_root_node_name = (f"{root_node_name}/{prefix}").replace("//", "/")
-        root_frame = self._target.scene.add_frame(prefixed_root_node_name, show_axes=False)
+        root_frame = self._target.scene.add_frame(
+            prefixed_root_node_name, show_axes=False
+        )
         if self._root_position is not None:
             root_frame.position = self._root_position
         if self._root_wxyz is not None:
@@ -292,7 +332,9 @@ class EnhancedViserUrdf:
                 scene.graph.transforms.parents[mesh_name],
                 collision_geometry=collision_geometry,
             )
-            name = _viser_name_from_frame(scene, mesh_name, prefixed_root_node_name)
+            name = _viser_name_from_frame(
+                scene, mesh_name, prefixed_root_node_name
+            )
 
             # Scale + transform the mesh. (these will mutate it!)
             mesh = mesh.copy()
@@ -311,13 +353,22 @@ class EnhancedViserUrdf:
                     color=mesh_color_override,
                 )
             elif len(mesh_color_override) == 4:
-                mesh_handle = self._target.scene.add_mesh_simple(
-                    name,
-                    mesh.vertices,
-                    mesh.faces,
-                    color=mesh_color_override[:3],
-                    opacity=mesh_color_override[3],
-                )
+                if mesh_color_override[0] is None: # handle set opacity only
+                    mesh_handle = self._target.scene.add_mesh_simple(
+                        name,
+                        mesh.vertices,
+                        mesh.faces,
+                        # color=mesh_color_override[:3],
+                        opacity=mesh_color_override[3],
+                    )
+                else:
+                    mesh_handle = self._target.scene.add_mesh_simple(
+                        name,
+                        mesh.vertices,
+                        mesh.faces,
+                        color=mesh_color_override[:3],
+                        opacity=mesh_color_override[3],
+                    )
             else:
                 raise ValueError("Invalid mesh_color_override format")
 
@@ -348,7 +399,9 @@ def _viser_name_from_frame(
     return "/".join(frames[::-1])
 
 
-def inject_spheres_into_urdf_xml(original_urdf_path: Optional[Path], urdf_obj: yourdfpy.URDF, store: SphereStore) -> str:
+def inject_spheres_into_urdf_xml(
+    original_urdf_path: Optional[Path], urdf_obj: yourdfpy.URDF, store: SphereStore
+) -> str:
     """Inject collision spheres into URDF XML, replacing all existing collision elements."""
     if original_urdf_path is not None:
         root = ET.parse(original_urdf_path).getroot()
@@ -374,9 +427,16 @@ def inject_spheres_into_urdf_xml(original_urdf_path: Optional[Path], urdf_obj: y
 
         for sphere_id in sphere_ids:
             sphere = store.by_id[sphere_id]
-            coll = ET.SubElement(link_elem, "collision", {"name": f"sphere_{sphere.id}"})
+            coll = ET.SubElement(
+                link_elem, "collision", {"name": f"sphere_{sphere.id}"}
+            )
             origin = ET.SubElement(
-                coll, "origin", {"xyz": f"{sphere.local_xyz[0]} {sphere.local_xyz[1]} {sphere.local_xyz[2]}", "rpy": "0 0 0"}
+                coll,
+                "origin",
+                {
+                    "xyz": f"{sphere.local_xyz[0]} {sphere.local_xyz[1]} {sphere.local_xyz[2]}",
+                    "rpy": "0 0 0",
+                },
             )
             geom = ET.SubElement(coll, "geometry")
             sph = ET.SubElement(geom, "sphere", {"radius": f"{sphere.radius}"})

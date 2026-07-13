@@ -11,12 +11,12 @@ def generate_joint_trajectory():
     print(f"==>> q_traj: \n{q_traj}")
 
     joint_names = [
-        "panda_joint1",
-        "panda_joint2",
-        "panda_joint3",
-        "panda_joint4",
-        "panda_joint5",
-        "panda_joint6",
+        "joint1",
+        "joint2",
+        "joint3",
+        "joint4",
+        "joint5",
+        "joint6",
     ]
 
     traj_dict = {}
@@ -89,7 +89,6 @@ def Hlist_to_Xlist(Hlist):
 def generate_taskspace_poses():
     Hlist = pick_task_poses()
     Xlist = Hlist_to_Xlist(Hlist)
-    print(f"==>> Xlist: \n{Xlist}")
 
     ts_dict = {}
     ts_dict["standard"] = "xyz_qxqyqzqw"
@@ -103,17 +102,28 @@ def generate_taskspace_poses():
         )
 
 
-def generate_taskspace_graph():
-    pass
-
-
 def generate_taskspace_tour():
-    pass
+    Hlist = pick_task_poses()
+    Xlist = Hlist_to_Xlist(Hlist)
+    ts_dict = {}
+    Xinit = np.array([0.0, 0.0, 1.0, -0.707106, 0.0, 0.0, 0.707106])
+
+    Xlist = np.vstack([Xinit, Xlist])
+    ts_dict["standard"] = "xyz_qxqyqzqw"
+    ts_dict["is_points_ordered"] = False
+    ts_dict["order"] = list(range(Xlist.shape[0]))
+    ts_dict["points"] = Xlist.tolist()
+    ts_dict["N"] = Xlist.shape[0]
+
+    yaml_file_path = "taskspace_poses_tour.yaml"
+    with open(yaml_file_path, "w") as yaml_file:
+        yaml.safe_dump(
+            ts_dict, yaml_file, default_flow_style=False, sort_keys=False
+        )
 
 
 if __name__ == "__main__":
-    generate_joint_trajectory()
-    generate_taskspace_poses()
-    generate_taskspace_graph()
+    # generate_joint_trajectory()
+    # generate_taskspace_poses()
+    # generate_taskspace_tour()
     generate_taskspace_tour()
-    # generate_color_interp()

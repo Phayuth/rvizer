@@ -46,7 +46,7 @@ class RvizerApp:
         self.taskspace_tour = None
 
         # Gui Elements
-        self._setup_cwd()
+        # self._setup_cwd()
         self._setup_rvizer_config()
         self._setup_robot()
         self._setup_env()
@@ -93,7 +93,10 @@ class RvizerApp:
 
     def _setup_rvizer_config(self):
         self.srv.scene.world_axes.visible = True
-
+        self.srv.gui.configure_theme(
+            control_width="large",
+            control_layout="floating",
+        )
         self.srv.scene.add_grid(
             "/reference_grid",
             width=10,
@@ -120,8 +123,8 @@ class RvizerApp:
             self.urdf_instances[r_name] = yourdfpy.URDF.load(
                 str(self.urdf_paths[r_name]),
                 load_meshes=True,
-                build_scene_graph=True,
                 load_collision_meshes=True,
+                build_scene_graph=True,
                 build_collision_scene_graph=True,
             )
             self.urdf_vizs[r_name] = EnhancedViserUrdf(
@@ -129,7 +132,12 @@ class RvizerApp:
                 urdf_or_path=self.urdf_instances[r_name],
                 load_meshes=True,
                 load_collision_meshes=True,
-                collision_mesh_color_override=(1.0, 0.0, 0.0, 0.4),
+                mesh_color_override=data["robots"][i].get(
+                    "visual_color_override", None
+                ),
+                collision_mesh_color_override=data["robots"][i].get(
+                    "collision_color_override", (1.0, 0.0, 0.0, 0.4)
+                ),
                 root_node_name=f"/robot/{r_name}",
                 root_position=np.array(data["robots"][i]["position"]),
                 root_wxyz=np.array(data["robots"][i]["wxyz"]),
@@ -141,10 +149,8 @@ class RvizerApp:
 
         with self.srv.gui.add_folder("Robots"):
             # gui handle
-            btn_urdf_load = self.srv.gui.add_button("Load a Robot Model")
             tab_group = self.srv.gui.add_tab_group()
             sldr_joints = {}
-            btn_infos = {}
             btn_resets = {}
             btn_trajs = {}
             sldr_trajs = {}
@@ -188,7 +194,6 @@ class RvizerApp:
                         )
                         sldr_joints[r_name].append(slider)
                         init_configs[r_name].append(initial_pos)
-                    btn_infos[r_name] = self.srv.gui.add_button("Show Info")
                     btn_resets[r_name] = self.srv.gui.add_button("Reset Home")
                     btn_trajs[r_name] = self.srv.gui.add_button("Load Trajectory")
                     sldr_trajs[r_name] = self.srv.gui.add_slider(
@@ -226,21 +231,6 @@ class RvizerApp:
             for r_name in self.urdf_vizs:
                 update_robot_config(r_name)
 
-            # bind info buttons
-            for r_name, btn in btn_infos.items():
-
-                @btn.on_click
-                def _(_, r_name=r_name):
-                    with self.srv.gui.add_modal(f"{r_name} Info") as modal:
-                        self.srv.gui.add_markdown(f"Robot Name: {r_name}")
-                        btn_close = self.srv.gui.add_button(
-                            "Close", icon=viser.Icon.MOUSE
-                        )
-
-                        @btn_close.on_click
-                        def _(_) -> None:
-                            modal.close()
-
             # bind reset buttons
             for r_name, btn in btn_resets.items():
 
@@ -259,7 +249,7 @@ class RvizerApp:
                     client = event.client
                     assert client is not None
 
-                    fyaml = "joint_trajectory.yaml"
+                    fyaml = "/home/yuth/Resources/gtsp/joint_trajectory.yaml"
                     self.traj = load_trajectory(fyaml)
 
                     client.add_notification(
@@ -387,8 +377,8 @@ class RvizerApp:
             self.eo_instances[eo_name] = yourdfpy.URDF.load(
                 str(self.eo_paths[eo_name]),
                 load_meshes=True,
-                build_scene_graph=True,
                 load_collision_meshes=True,
+                build_scene_graph=True,
                 build_collision_scene_graph=True,
             )
             self.eo_vizs[eo_name] = EnhancedViserUrdf(
@@ -396,7 +386,12 @@ class RvizerApp:
                 urdf_or_path=self.eo_instances[eo_name],
                 load_meshes=True,
                 load_collision_meshes=True,
-                collision_mesh_color_override=(1.0, 0.0, 0.0, 0.4),
+                mesh_color_override=data["env_objects"][i].get(
+                    "visual_color_override", None
+                ),
+                collision_mesh_color_override=data["env_objects"][i].get(
+                    "collision_color_override", (1.0, 0.0, 0.0, 0.4)
+                ),
                 root_node_name=f"/env_objects/{eo_name}",
                 root_position=np.array(data["env_objects"][i]["position"]),
                 root_wxyz=np.array(data["env_objects"][i]["wxyz"]),
@@ -414,8 +409,21 @@ class RvizerApp:
         # gui handle
         with self.srv.gui.add_folder("Environment Objects"):
 
-            def set_env_visibility(mode: str) -> None:
-                for eo_viz in self.eo_vizs.values():
+            def set_env_visibility(mode: str):
+                if dd_int.value == "All":
+                    for eo_viz in self.eo_vizs.values():
+                        if mode == "Visual":
+                            eo_viz.show_visual = True
+                            eo_viz.show_collision = False
+                        elif mode == "Collision":
+                            eo_viz.show_visual = False
+                            eo_viz.show_collision = True
+                        else:
+                            eo_viz.show_visual = True
+                            eo_viz.show_collision = True
+                else:
+                    eo_name = dd_int.value
+                    eo_viz = self.eo_vizs[eo_name]
                     if mode == "Visual":
                         eo_viz.show_visual = True
                         eo_viz.show_collision = False
@@ -426,15 +434,18 @@ class RvizerApp:
                         eo_viz.show_visual = True
                         eo_viz.show_collision = True
 
+            eo_names_withall = ["All"] + eo_names
             dd_int = self.srv.gui.add_dropdown(
                 label="Instances",
-                options=eo_names,
+                options=eo_names_withall,
+                initial_value="All",
             )
             dd_v = self.srv.gui.add_dropdown(
                 "Visibility",
                 options=("Visual", "Collision", "Both"),
                 initial_value="Visual",
             )
+            # apply initial visibility
             set_env_visibility(dd_v.value)
 
             @dd_v.on_update
@@ -489,7 +500,7 @@ class RvizerApp:
     def _setup_rtsp(self):
         with self.srv.gui.add_folder("RTSP"):
             btng_tstour = self.srv.gui.add_button_group(
-                label="Tour", options=("Load", "Order", "View", "Hide")
+                label="Tour", options=("Load", "ViewOrder")
             )
             sldr_tstour = self.srv.gui.add_slider(
                 label="Tour Progress",
@@ -499,18 +510,37 @@ class RvizerApp:
                 initial_value=0.0,
             )
 
+            ts_handles = []
+
             def _handle_btng_tstour(event: viser.GuiEvent) -> None:
                 client = event.client
                 action = event.target.value
 
                 if action == "Load":
-                    # fyaml = "taskspace_poses_tour.yaml"
-                    # with open(fyaml, "r") as yaml_file:
-                    #     data = yaml.safe_load(yaml_file)
+                    fyaml = "/home/yuth/Resources/gtsp/taskspace_tour.yaml"  # Example path
+                    self.taskspace_tour = load_taskspace_tour(fyaml)
 
-                    pose = self.taskspace["points"]
+                    for i in range(self.taskspace_tour["N"]):
+                        pose = self.taskspace_tour["points"][i]
+                        position = pose[:3]
+                        if self.taskspace_tour["standard"] == "xyz_qxqyqzqw":
+                            # Convert to wxyz
+                            quat = np.array([pose[6], pose[3], pose[4], pose[5]])
+                        else:
+                            quat = np.array([pose[3], pose[4], pose[5], pose[6]])
+
+                        ts_h_ = self.srv.scene.add_frame(
+                            f"/task/tasks_tour/frame_{i}",
+                            position=position,
+                            wxyz=quat,
+                            axes_length=0.1,
+                            axes_radius=0.005,
+                        )
+                        ts_handles.append(ts_h_)
+
+                    pose = self.taskspace_tour["points"]
                     ts_position = pose[:, :3]  # shape (N, 3)
-                    ts_tour = np.arange(len(ts_position))
+                    ts_tour = self.taskspace_tour["order"]  # shape (N,)
                     ts_position_in_tour = ts_position[ts_tour]  # shape (N, 3)
 
                     # line segments
@@ -525,18 +555,18 @@ class RvizerApp:
                     colors = colors.reshape(-1, 2, 3)  # shape (N-1, 2, 3)
 
                     self.srv.scene.add_line_segments(
-                        "/task/tour_order",
+                        "/task/tasks_tour/tour_order",
                         points=points,
                         colors=colors,
                         line_width=5,
                     )
                     self.srv.scene.add_label(
-                        "/task/tour_start",
+                        "/task/tasks_tour/tour_start",
                         text="Start",
                         position=points[0, 0],
                     )
                     self.srv.scene.add_label(
-                        "/task/tour_end",
+                        "/task/tasks_tour/tour_end",
                         text="End",
                         position=points[-1, 1],
                     )
@@ -549,7 +579,7 @@ class RvizerApp:
                     )
 
                     tour_sphere = self.srv.scene.add_icosphere(
-                        "/task/tour_sphere",
+                        "/task/tasks_tour/tour_sphere",
                         position=points[0, 0],
                         radius=0.03,
                         color=(0.0, 1.0, 0.0),
@@ -570,6 +600,24 @@ class RvizerApp:
                     sldr_tstour.on_update(
                         lambda event: update_tour_sphere(event.target.value)
                     )
+
+                elif action == "ViewOrder":
+                    with self.srv.gui.add_modal("Tour Order") as modal:
+                        if self.taskspace_tour is None:
+                            self.srv.gui.add_markdown(
+                                "No tour loaded. Please load a tour first."
+                            )
+                        else:
+                            self.srv.gui.add_markdown(
+                                f"Tour Order: {self.taskspace_tour['order']}"
+                            )
+                        btn_close = self.srv.gui.add_button(
+                            "Close", icon=viser.Icon.MOUSE
+                        )
+
+                        @btn_close.on_click
+                        def _(_) -> None:
+                            modal.close()
 
             btng_tstour.on_click(_handle_btng_tstour)
 

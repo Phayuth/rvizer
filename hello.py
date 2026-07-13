@@ -5,6 +5,18 @@ import viser
 
 def main() -> None:
     server = viser.ViserServer()
+    with server.gui.add_folder("Environment Objects") as folder_env:
+        btn_load = server.gui.add_button("Load Environment Object")
+
+        @btn_load.on_click
+        def _(event: viser.GuiEvent):
+            with folder_env:
+                bbbb = server.gui.add_button("Remove Environment Object")
+
+                @bbbb.on_click
+                def _(event: viser.GuiEvent):
+                    bbbb.remove()
+
     # Example 0: Open Folder
     with server.gui.add_folder("Files"):
         gui_button = server.gui.add_button("Open", icon=viser.Icon.MOUSE)
@@ -46,13 +58,14 @@ def main() -> None:
 
     # 2. Add tabs using a context manager
     with tab_group.add_tab("Tab 1", icon=viser.Icon.SETTINGS):
-        slider1 = server.gui.add_slider(label="Slider 1", min=0.0, max=10.0, step=0.1, initial_value=0.0)
+        slider1 = server.gui.add_slider(
+            label="Slider 1", min=0.0, max=10.0, step=0.1, initial_value=0.0
+        )
         checkbox1 = server.gui.add_checkbox(label="Option 1", initial_value=True)
 
     with tab_group.add_tab("Tab 2", icon=viser.Icon.INFO_CIRCLE):
         text_input = server.gui.add_text(label="Name", initial_value="Viser User")
         button = server.gui.add_button(label="Submit")
-
 
     # Example 1: Organizing with folders
     with server.gui.add_folder("Camera Controls"):
@@ -81,9 +94,7 @@ def main() -> None:
         server.gui.add_multi_slider(
             "Field of View", min=30, max=120, step=1, initial_value=(60, 90)
         )
-        server.gui.add_progress_bar(
-            1
-        )
+        server.gui.add_progress_bar(1)
 
     # Example 2: Scene objects organization
     with server.gui.add_folder("Scene Objects"):
