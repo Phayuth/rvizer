@@ -1,3 +1,4 @@
+import os
 import numpy as np
 import viser
 import viser.transforms as tf
@@ -6,7 +7,6 @@ import time
 import threading
 import yaml
 from pathlib import Path
-from robot_descriptions.loaders.yourdfpy import load_robot_description
 from bubblify.core import EnhancedViserUrdf
 from rvizer.osutils import os_select_folder, os_list_directory, os_open_directory
 from rvizer.guiutils import (
@@ -14,6 +14,7 @@ from rvizer.guiutils import (
     load_trajectory,
     load_taskspace,
     load_taskspace_tour,
+    load_robot_config,
 )
 
 
@@ -23,17 +24,24 @@ class RvizerApp:
         # Gui State
         self.srv = viser.ViserServer(port=port)
 
+        # cwd
+        self.cwd = "/home/"
+
+        # Scenesheet
+        self.ss = None
+
         # Robots
-        self.urdf_paths = {}
-        self.urdf_instances = {}
-        self.urdf_vizs = {}
-        self.urdf_pose_origins = {}
+        self.r_paths = {}
+        self.r_instances = {}
+        self.r_vizs = {}
+        self.r_pose_origins = {}
+        self.r_configs = {}
 
         # Robot state
         self.traj = {}
-        self._traj_play_stop = threading.Event()
-        self._traj_play_thread = None
-        self._traj_slider_programmatic_update = False
+        self._traj_btn_play_stop = threading.Event()
+        self._traj_btn_play_thread = None
+        self._traj_sldr_prog_update = False
 
         # Environment Object
         self.eo_paths = {}
@@ -46,20 +54,20 @@ class RvizerApp:
         self.taskspace_tour = None
 
         # Gui Elements
-        # self._setup_cwd()
+        self._setup_cwd()
         self._setup_rvizer_config()
-        self._setup_robot()
-        self._setup_env()
-        self._setup_taskspace()
-        self._setup_rtsp()
-        self._setup_utilities()
+        # self._setup_robot()
+        # self._setup_env()
+        # self._setup_taskspace()
+        # self._setup_rtsp()
+        # self._setup_utilities()
 
     def _setup_cwd(self):
         with self.srv.gui.add_folder("Current Working Directory"):
             # gui handle
-            t_cwd = self.srv.gui.add_text("CWD", initial_value="/home/")
+            t_cwd = self.srv.gui.add_text("CWD", initial_value=self.cwd)
             btng_dir = self.srv.gui.add_button_group(
-                label="Action", options=("Select", "Open", "View")
+                label="Action", options=("Select", "Open", "View", "Init")
             )
             cwd_files = ""
 
@@ -69,9 +77,10 @@ class RvizerApp:
 
                 if action == "Select":
                     f = os_select_folder(
-                        initial_dir="/home/", title="Select Directory"
+                        initial_dir=self.cwd, title="Select Directory"
                     )
                     t_cwd.value = f
+                    self.cwd = f
                     cwd_files = os_list_directory(Path(f))
 
                 elif action == "Open":
@@ -89,10 +98,39 @@ class RvizerApp:
                         def _(_) -> None:
                             modal.close()
 
+                elif action == "Init":
+                    success = self._read_scene(self.cwd)
+                    if not success:
+                        return
+                    self._setup_robot()
+                    self._setup_env()
+                    self._setup_taskspace()
+                    self._setup_rtsp()
+                    self._setup_utilities()
+
             btng_dir.on_click(handle_btng_dir)
+
+    def _read_scene(self, fyaml):
+        fyaml = os.path.join(fyaml, "scene.yaml")
+        try:
+            with open(fyaml, "r") as yaml_file:
+                data = yaml.safe_load(yaml_file)
+                self.ss = data
+        except FileNotFoundError:
+            print(f"Scene file not found: {fyaml}")
+            self.ss = None
+        except yaml.YAMLError as e:
+            print(f"Error parsing YAML file: {fyaml}\n{e}")
+            self.ss = None
+        else:
+            print(f"Scene file loaded successfully: {fyaml}")
+            return True
+        return False
 
     def _setup_rvizer_config(self):
         self.srv.scene.world_axes.visible = True
+        self.srv.scene.world_axes.axes_length = 5
+        self.srv.scene.world_axes.axes_radius = 0.001
         self.srv.gui.configure_theme(
             control_width="large",
             control_layout="floating",
@@ -112,54 +150,55 @@ class RvizerApp:
             )
 
     def _setup_robot(self):
-        fyaml = "scene.yaml"
-        with open(fyaml, "r") as yaml_file:
-            data = yaml.safe_load(yaml_file)
-
-        r_names = [d["name"] for d in data.get("robots", [])]
+        r_names = [d["name"] for d in self.ss["robots"]]
         for i in range(len(r_names)):
             r_name = r_names[i]
-            self.urdf_paths[r_name] = data["robots"][i]["urdf_path"]
-            self.urdf_instances[r_name] = yourdfpy.URDF.load(
-                str(self.urdf_paths[r_name]),
+            self.r_paths[r_name] = self.cwd + self.ss["robots"][i]["urdf_path"]
+            self.r_instances[r_name] = yourdfpy.URDF.load(
+                str(self.r_paths[r_name]),
                 load_meshes=True,
                 load_collision_meshes=True,
                 build_scene_graph=True,
                 build_collision_scene_graph=True,
             )
-            self.urdf_vizs[r_name] = EnhancedViserUrdf(
+            self.r_vizs[r_name] = EnhancedViserUrdf(
                 self.srv,
-                urdf_or_path=self.urdf_instances[r_name],
+                urdf_or_path=self.r_instances[r_name],
                 load_meshes=True,
                 load_collision_meshes=True,
-                mesh_color_override=data["robots"][i].get(
+                mesh_color_override=self.ss["robots"][i].get(
                     "visual_color_override", None
                 ),
-                collision_mesh_color_override=data["robots"][i].get(
+                collision_mesh_color_override=self.ss["robots"][i].get(
                     "collision_color_override", (1.0, 0.0, 0.0, 0.4)
                 ),
                 root_node_name=f"/robot/{r_name}",
-                root_position=np.array(data["robots"][i]["position"]),
-                root_wxyz=np.array(data["robots"][i]["wxyz"]),
+                root_position=np.array(self.ss["robots"][i]["position"]),
+                root_wxyz=np.array(self.ss["robots"][i]["wxyz"]),
             )
-            self.urdf_pose_origins[r_name] = (
-                data["robots"][i]["position"],
-                data["robots"][i]["wxyz"],
+            self.r_pose_origins[r_name] = (
+                self.ss["robots"][i]["position"],
+                self.ss["robots"][i]["wxyz"],
             )
 
         with self.srv.gui.add_folder("Robots"):
             # gui handle
             tab_group = self.srv.gui.add_tab_group()
+            # ------------------
+            dd_config_modes = {}
+            btng_configs = {}
+
+            # ------------------
+            dd_trajs = {}
             sldr_joints = {}
             btn_resets = {}
-            btn_trajs = {}
             sldr_trajs = {}
             cb_loops = {}
             btng_players = {}
             cb_viss = {}
 
             def set_robot_visibility(r_name: str, mode: str) -> None:
-                urdf_viz = self.urdf_vizs[r_name]
+                urdf_viz = self.r_vizs[r_name]
                 if mode == "Visual":
                     urdf_viz.show_visual = True
                     urdf_viz.show_collision = False
@@ -172,11 +211,11 @@ class RvizerApp:
 
             # interaction handle
             init_configs = {}
-            for r_name, urdf_viz in self.urdf_vizs.items():
+            for r_name, urdf_viz in self.r_vizs.items():
                 with tab_group.add_tab(f"{r_name}"):
                     sldr_joints[r_name] = []
                     init_configs[r_name] = []
-                    r = self.urdf_vizs[r_name].get_actuated_joint_limits().items()
+                    r = self.r_vizs[r_name].get_actuated_joint_limits().items()
                     for j_name, (lower, upper) in r:
                         lower = lower if lower is not None else -np.pi
                         upper = upper if upper is not None else np.pi
@@ -195,15 +234,38 @@ class RvizerApp:
                         sldr_joints[r_name].append(slider)
                         init_configs[r_name].append(initial_pos)
                     btn_resets[r_name] = self.srv.gui.add_button("Reset Home")
-                    btn_trajs[r_name] = self.srv.gui.add_button("Load Trajectory")
+
+                    # -----------------------------------
+                    self.r_configs[r_name] = load_robot_config(
+                        self.cwd + self.ss["robots_config"][0]["path"]
+                    )
+                    dd_config_modes[r_name] = self.srv.gui.add_dropdown(
+                        label="Mode",
+                        options=list(self.r_configs[r_name].keys()),
+                        initial_value=list(self.r_configs[r_name].keys())[0],
+                    )
+                    btng_configs[r_name] = self.srv.gui.add_button_group(
+                        label="Action", options=("Apply", "Save", "Remove")
+                    )
+
+                    self.srv.gui.add_divider()
+
+                    # -----------------------------------
+                    dd_trajs[r_name] = self.srv.gui.add_dropdown(
+                        label="Trajectories",
+                        options=[
+                            d["name"] for d in self.ss["robots_trajectories"]
+                        ],
+                        initial_value=self.ss["robots_trajectories"][0]["name"],
+                    )
+                    btng_players[r_name] = self.srv.gui.add_button_group(
+                        label="Player", options=("Load", "Play", "Pause", "Reset")
+                    )
                     sldr_trajs[r_name] = self.srv.gui.add_slider(
                         "Progress", min=0.0, max=1.0, step=0.01, initial_value=0.0
                     )
                     cb_loops[r_name] = self.srv.gui.add_checkbox(
-                        "Auto Loop", initial_value=False
-                    )
-                    btng_players[r_name] = self.srv.gui.add_button_group(
-                        label="Player", options=("Play", "Pause", "Reset")
+                        "AutoLoop", initial_value=False
                     )
                     cb_viss[r_name] = self.srv.gui.add_dropdown(
                         "Visibility",
@@ -219,16 +281,16 @@ class RvizerApp:
             # Connect sliders to URDF update
             def update_robot_config(r_name):
                 config = np.array([s.value for s in sldr_joints[r_name]])
-                self.urdf_vizs[r_name].update_cfg(config)
+                self.r_vizs[r_name].update_cfg(config)
 
-            for r_name, _ in self.urdf_vizs.items():
+            for r_name, _ in self.r_vizs.items():
                 for slider in sldr_joints[r_name]:
                     slider.on_update(
                         lambda _, r_name=r_name: update_robot_config(r_name)
                     )
 
             # apply initial configuration
-            for r_name in self.urdf_vizs:
+            for r_name in self.r_vizs:
                 update_robot_config(r_name)
 
             # bind reset buttons
@@ -241,53 +303,65 @@ class RvizerApp:
                     ):
                         slider.value = init_val
 
-            # bind load trajectory buttons
-            for r_name, btn in btn_trajs.items():
-
-                @btn.on_click
-                def _(event: viser.GuiEvent, r_name=r_name):
-                    client = event.client
-                    assert client is not None
-
-                    fyaml = "/home/yuth/Resources/gtsp/joint_trajectory.yaml"
-                    self.traj = load_trajectory(fyaml)
-
-                    client.add_notification(
-                        title=f"Trajectory Loaded for {r_name}",
-                        body=f"Trajectory has been successfully loaded",
-                        auto_close_seconds=5,
-                        with_close_button=True,
-                    )
-
-                    sldr_trajs[r_name].min = 0.0
-                    sldr_trajs[r_name].max = max(self.traj["N"] - 1, 0)
-                    sldr_trajs[r_name].step = 1.0
-                    self._traj_slider_programmatic_update = True
-                    sldr_trajs[r_name].value = 0.0
-                    self._traj_slider_programmatic_update = False
-
             # bind trajectory slider to update robot configuration
             def update_robot_config_traj(r_name):
-                if self.traj is None or self._traj_slider_programmatic_update:
+                if self.traj is None or self._traj_sldr_prog_update:
                     return
 
                 idx = int(sldr_trajs[r_name].value)
                 if 0 <= idx < self.traj["N"]:
                     config = np.asarray(self.traj["points"][idx])
-                    self.urdf_vizs[r_name].update_cfg(config)
+                    self.r_vizs[r_name].update_cfg(config)
 
             for r_name, slider in sldr_trajs.items():
                 slider.on_update(
                     lambda _, r_name=r_name: update_robot_config_traj(r_name)
                 )
 
+            # bind config buttons
+            for r_name, btng in btng_configs.items():
+
+                def handle_config_action(event: viser.GuiEvent, r_name=r_name):
+                    client = event.client
+                    action = event.target.value
+                    if action == "Apply":
+                        q = self.r_configs[r_name][dd_config_modes[r_name].value]
+                        self.r_vizs[r_name].update_cfg(q)
+                    elif action == "Save":
+                        pass
+                    elif action == "Remove":
+                        pass
+
+                btng_configs[r_name].on_click(handle_config_action)
+
             # bind player buttons
             for r_name, slider in sldr_trajs.items():
 
                 def handle_player_action(event: viser.GuiEvent, r_name=r_name):
+                    client = event.client
                     action = event.target.value
 
-                    if action == "Play":
+                    if action == "Load":
+                        fyaml = (
+                            self.cwd + self.ss["robots_trajectories"][0]["path"]
+                        )
+                        self.traj = load_trajectory(fyaml)
+
+                        client.add_notification(
+                            title=f"Trajectory Loaded for {r_name}",
+                            body=f"Trajectory has been successfully loaded",
+                            auto_close_seconds=5,
+                            with_close_button=True,
+                        )
+
+                        sldr_trajs[r_name].min = 0.0
+                        sldr_trajs[r_name].max = max(self.traj["N"] - 1, 0)
+                        sldr_trajs[r_name].step = 1.0
+                        self._traj_sldr_prog_update = True
+                        sldr_trajs[r_name].value = 0.0
+                        self._traj_sldr_prog_update = False
+
+                    elif action == "Play":
                         self._start_trajectory_playback(
                             sldr_trajs[r_name],
                             cb_loops[r_name],
@@ -298,21 +372,21 @@ class RvizerApp:
                         self._stop_trajectory_playback()
                     elif action == "Reset":
                         self._stop_trajectory_playback()
-                        self._traj_slider_programmatic_update = True
+                        self._traj_sldr_prog_update = True
                         sldr_trajs[r_name].value = 0.0
-                        self._traj_slider_programmatic_update = False
+                        self._traj_sldr_prog_update = False
                         update_robot_config_traj(r_name)
 
                 btng_players[r_name].on_click(handle_player_action)
 
     def _stop_trajectory_playback(self):
-        self._traj_play_stop.set()
+        self._traj_btn_play_stop.set()
         if (
-            self._traj_play_thread is not None
-            and self._traj_play_thread.is_alive()
+            self._traj_btn_play_thread is not None
+            and self._traj_btn_play_thread.is_alive()
         ):
-            self._traj_play_thread.join(timeout=0.2)
-        self._traj_play_thread = None
+            self._traj_btn_play_thread.join(timeout=0.2)
+        self._traj_btn_play_thread = None
 
     def _start_trajectory_playback(
         self,
@@ -325,14 +399,14 @@ class RvizerApp:
             return
 
         self._stop_trajectory_playback()
-        self._traj_play_stop.clear()
+        self._traj_btn_play_stop.clear()
 
         def _run():
             time_from_start = np.asarray(self.traj.get("time_from_start", []))
             start_idx = int(trajslider.value)
             start_idx = max(0, min(start_idx, self.traj["N"] - 1))
 
-            while self.traj is not None and not self._traj_play_stop.is_set():
+            while self.traj is not None and not self._traj_btn_play_stop.is_set():
                 prev_time = (
                     float(time_from_start[start_idx - 1])
                     if start_idx > 0 and start_idx - 1 < len(time_from_start)
@@ -340,12 +414,12 @@ class RvizerApp:
                 )
 
                 for idx in range(start_idx, self.traj["N"]):
-                    if self._traj_play_stop.is_set():
+                    if self._traj_btn_play_stop.is_set():
                         return
 
-                    self._traj_slider_programmatic_update = True
+                    self._traj_sldr_prog_update = True
                     trajslider.value = float(idx)
-                    self._traj_slider_programmatic_update = False
+                    self._traj_sldr_prog_update = False
                     update_robot_config(r_name)
 
                     if idx < len(time_from_start):
@@ -362,18 +436,16 @@ class RvizerApp:
 
                 start_idx = 0
 
-        self._traj_play_thread = threading.Thread(target=_run, daemon=True)
-        self._traj_play_thread.start()
+        self._traj_btn_play_thread = threading.Thread(target=_run, daemon=True)
+        self._traj_btn_play_thread.start()
 
     def _setup_env(self):
-        fyaml = "scene.yaml"
-        with open(fyaml, "r") as yaml_file:
-            data = yaml.safe_load(yaml_file)
-
-        eo_names = [d["name"] for d in data.get("env_objects", [])]
+        eo_names = [d["name"] for d in self.ss["env_objects"]]
         for i in range(len(eo_names)):
             eo_name = eo_names[i]
-            self.eo_paths[eo_name] = data["env_objects"][i]["urdf_path"]
+            self.eo_paths[eo_name] = (
+                self.cwd + self.ss["env_objects"][i]["urdf_path"]
+            )
             self.eo_instances[eo_name] = yourdfpy.URDF.load(
                 str(self.eo_paths[eo_name]),
                 load_meshes=True,
@@ -386,19 +458,19 @@ class RvizerApp:
                 urdf_or_path=self.eo_instances[eo_name],
                 load_meshes=True,
                 load_collision_meshes=True,
-                mesh_color_override=data["env_objects"][i].get(
+                mesh_color_override=self.ss["env_objects"][i].get(
                     "visual_color_override", None
                 ),
-                collision_mesh_color_override=data["env_objects"][i].get(
+                collision_mesh_color_override=self.ss["env_objects"][i].get(
                     "collision_color_override", (1.0, 0.0, 0.0, 0.4)
                 ),
                 root_node_name=f"/env_objects/{eo_name}",
-                root_position=np.array(data["env_objects"][i]["position"]),
-                root_wxyz=np.array(data["env_objects"][i]["wxyz"]),
+                root_position=np.array(self.ss["env_objects"][i]["position"]),
+                root_wxyz=np.array(self.ss["env_objects"][i]["wxyz"]),
             )
             self.eo_pose_origins[eo_name] = (
-                data["env_objects"][i]["position"],
-                data["env_objects"][i]["wxyz"],
+                self.ss["env_objects"][i]["position"],
+                self.ss["env_objects"][i]["wxyz"],
             )
 
         # apply initial configuration
@@ -455,6 +527,12 @@ class RvizerApp:
     def _setup_taskspace(self):
         with self.srv.gui.add_folder("Task Space"):
             # gui handle
+            ts_names = [d["name"] for d in self.ss["taskspaces"]]
+            dd_ts = self.srv.gui.add_dropdown(
+                label="Poses",
+                options=ts_names,
+                initial_value=ts_names[0],
+            )
             btng_tslad = self.srv.gui.add_button_group(
                 label="Action", options=("Load", "Add", "Delete")
             )
@@ -467,7 +545,12 @@ class RvizerApp:
                 action = event.target.value
 
                 if action == "Load":
-                    fyaml = "taskspace_poses.yaml"  # Example path
+                    fyaml = (
+                        self.cwd
+                        + self.ss["taskspaces"][ts_names.index(dd_ts.value)][
+                            "path"
+                        ]
+                    )
                     self.taskspace = load_taskspace(fyaml)
 
                     client.add_notification(
@@ -499,11 +582,18 @@ class RvizerApp:
 
     def _setup_rtsp(self):
         with self.srv.gui.add_folder("RTSP"):
+            # gui handle
+            tst_names = [d["name"] for d in self.ss["taskspace_tours"]]
+            dd_tst = self.srv.gui.add_dropdown(
+                label="Tours",
+                options=tst_names,
+                initial_value=tst_names[0],
+            )
             btng_tstour = self.srv.gui.add_button_group(
-                label="Tour", options=("Load", "ViewOrder")
+                label="Action", options=("Load", "ViewOrder")
             )
             sldr_tstour = self.srv.gui.add_slider(
-                label="Tour Progress",
+                label="Progress",
                 min=0.0,
                 max=1.0,
                 step=0.01,
@@ -517,7 +607,12 @@ class RvizerApp:
                 action = event.target.value
 
                 if action == "Load":
-                    fyaml = "/home/yuth/Resources/gtsp/taskspace_tour.yaml"  # Example path
+                    fyaml = (
+                        self.cwd
+                        + self.ss["taskspace_tours"][
+                            tst_names.index(dd_tst.value)
+                        ]["path"]
+                    )
                     self.taskspace_tour = load_taskspace_tour(fyaml)
 
                     for i in range(self.taskspace_tour["N"]):
@@ -643,26 +738,3 @@ class RvizerApp:
 if __name__ == "__main__":
     app = RvizerApp(port=8080)
     app.run()
-
-
-# interesting code snippet for resetting joint sliders to initial values
-# The loop was failing because the callback inside it was closing over the loop variable r_name.
-# In Python, that variable is late-bound, so by the time the button is clicked, every handler can end up seeing the same final value.
-# The explicit version worked because it hardcoded each robot name, so each button targeted the right slider list.
-
-# br1 = btn_resets["ur5e"]
-# br2 = btn_resets["ur5e_ghost"]
-
-# @br1.on_click
-# def _(event: viser.GuiEvent) -> None:
-#     for slider, init_val in zip(
-#         sliders_joint["ur5e"], init_configs["ur5e"]
-#     ):
-#         slider.value = init_val
-
-# @br2.on_click
-# def _(event: viser.GuiEvent) -> None:
-#     for slider, init_val in zip(
-#         sliders_joint["ur5e_ghost"], init_configs["ur5e_ghost"]
-#     ):
-#         slider.value = init_val

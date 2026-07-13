@@ -1,5 +1,4 @@
 import time
-
 import viser
 
 
@@ -17,6 +16,17 @@ def main() -> None:
                 def _(event: viser.GuiEvent):
                     bbbb.remove()
 
+    with server.gui.add_folder("Robot Controls") as folder_robot:
+        instance = []
+        btng_configs = server.gui.add_button_group(
+            label="Action", options=("Apply", "Save", "Remove")
+        )
+        instance.append(btng_configs.label)
+
+    with server.gui.add_folder("Scene Objects") as folder_scene:
+        with server.gui.add_form(label="dfsf") as f:
+            f.on_submit(lambda event: print("Form submitted!"))
+
     # Example 0: Open Folder
     with server.gui.add_folder("Files"):
         gui_button = server.gui.add_button("Open", icon=viser.Icon.MOUSE)
@@ -26,10 +36,7 @@ def main() -> None:
         print("Open button clicked!")
         with server.gui.add_modal("File Opened") as modal:
             server.gui.add_markdown(
-                "You have successfully opened a file. This is a modal dialog. fdasfdsafdsfadsfdsafdsafdsfdsafsfds"
-            )
-            server.gui.add_html(
-                '<iframe width="300" height="300" src="https://www.youtube.com/embed/mVg108SO14Q" title="Pink Floyd · Another Brick In The Wall (Parts I-II-III)" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>'
+                "You have successfully opened a file. This is a modal dialog."
             )
 
             close_button = server.gui.add_button("Close", icon=viser.Icon.MOUSE)

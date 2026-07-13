@@ -1,13 +1,13 @@
 robots:
   - name: ur5e
-    urdf_path: /home/yuth/Resources/ur5e/ur5e_extract_calibrated_spherized.urdf
+    urdf_path: /ur5e/ur5e_extract_calibrated_spherized.urdf
     position: [0.0, 0.0, 0.0]
     wxyz: [1.0, 0.0, 0.0, 0.0]
     visual_color_override: null
     collision_color_override: [1.0, 0.0, 0.0, 0.4]
 
   - name: ur5e_ghost
-    urdf_path: /home/yuth/Resources/ur5e/ur5e_extract_calibrated_spherized.urdf
+    urdf_path: /ur5e/ur5e_extract_calibrated_spherized.urdf
     position: [0.0, 0.0, 0.0]
     wxyz: [1.0, 0.0, 0.0, 0.0]
     visual_color_override: [0.0, 1.0, 0.0, 0.4]
@@ -15,29 +15,53 @@ robots:
 
 env_objects:
   - name: shelf_1
-    urdf_path: /home/yuth/Resources/ur5e/shelf.urdf
+    urdf_path: /ur5e/shelf.urdf
     position: [0.0, 0.75, 0.0]
     wxyz: [0.0, 0.0, 0.0, 1.0]
     visual_color_override: null
     collision_color_override: [1.0, 0.0, 0.0, 0.4]
 
   - name: shelf_2
-    urdf_path: /home/yuth/Resources/ur5e/shelf.urdf
+    urdf_path: /ur5e/shelf.urdf
     position: [0.0, -0.75, 0.0]
     wxyz: [1.0, 0.0, 0.0, 0.0]
     visual_color_override: null
     collision_color_override: [1.0, 0.0, 0.0, 0.4]
 
   - name: shelf_3
-    urdf_path: /home/yuth/Resources/ur5e/shelf.urdf
+    urdf_path: /ur5e/shelf.urdf
     position: [0.75, 0.0, 0.0]
     wxyz: [0.70710678, 0.0, 0.0, 0.70710678]
     visual_color_override: null
     collision_color_override: [1.0, 0.0, 0.0, 0.4]
 
   - name: plane
-    urdf_path: /home/yuth/Resources/ur5e/plane.urdf
+    urdf_path: /ur5e/plane.urdf
     position: [0.0, 0.0, 0.0]
     wxyz: [1.0, 0.0, 0.0, 0.0]
     visual_color_override: null
     collision_color_override: [1.0, 0.0, 0.0, 0.4]
+
+robots_config:
+  - name: ur5e
+    path: /robot_config.yaml
+  - name: ur5e_ghost
+    path: /robot_config.yaml
+
+robots_trajectories:
+  - name: traj_1
+    path: /joint_trajectory.yaml
+  - name: traj_2
+    path: /joint_trajectory.yaml
+
+taskspaces:
+  - name: taskspace_1
+    path: /taskspace_poses.yaml
+  - name: taskspace_2
+    path: /taskspace_poses.yaml
+
+taskspace_tours:
+  - name: tour_1
+    path: /taskspace_poses_tour.yaml
+  - name: tour_2
+    path: /taskspace_poses_tour.yaml

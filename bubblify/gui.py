@@ -1,18 +1,19 @@
 """Interactive GUI application for URDF spherization using Viser."""
 
 from __future__ import annotations
-
-import math
 import time
 from pathlib import Path
 from typing import Dict, List, Optional
-
 import numpy as np
 import viser
 import yourdfpy
 from robot_descriptions.loaders.yourdfpy import load_robot_description
-
-from bubblify.core import EnhancedViserUrdf, Sphere, SphereStore, inject_spheres_into_urdf_xml
+from bubblify.core import (
+    EnhancedViserUrdf,
+    Sphere,
+    SphereStore,
+    inject_spheres_into_urdf_xml,
+)
 
 
 class BubblifyApp:
@@ -97,7 +98,9 @@ class BubblifyApp:
         self.other_links_spheres_opacity: float = 0.2
 
         # Create sphere root frame
-        self.spheres_root = self.server.scene.add_frame("/spheres", show_axes=False)
+        self.spheres_root = self.server.scene.add_frame(
+            "/spheres", show_axes=False
+        )
 
         # Setup GUI
         self._setup_robot_controls()
@@ -124,10 +127,15 @@ class BubblifyApp:
             # Joint sliders
             initial_config = []
 
-            for joint_name, (lower, upper) in self.urdf_viz.get_actuated_joint_limits().items():
+            for joint_name, (
+                lower,
+                upper,
+            ) in self.urdf_viz.get_actuated_joint_limits().items():
                 lower = lower if lower is not None else -np.pi
                 upper = upper if upper is not None else np.pi
-                initial_pos = 0.0 if lower < -0.1 and upper > 0.1 else (lower + upper) / 2.0
+                initial_pos = (
+                    0.0 if lower < -0.1 and upper > 0.1 else (lower + upper) / 2.0
+                )
 
                 slider = self.server.gui.add_slider(
                     label=joint_name,
@@ -165,21 +173,39 @@ class BubblifyApp:
             all_links = self.urdf_viz.get_all_link_names()
             if not all_links:
                 all_links = ["base_link"]
-            current_link_dropdown = self.server.gui.add_dropdown("Current Link", options=all_links, initial_value=all_links[0])
+            current_link_dropdown = self.server.gui.add_dropdown(
+                "Current Link", options=all_links, initial_value=all_links[0]
+            )
 
             # Mesh visibility toggles
-            show_selected_link_cb = self.server.gui.add_checkbox("Show Selected Link", initial_value=self.show_selected_link)
-            show_other_links_cb = self.server.gui.add_checkbox("Show Other Links", initial_value=self.show_other_links)
+            show_selected_link_cb = self.server.gui.add_checkbox(
+                "Show Selected Link", initial_value=self.show_selected_link
+            )
+            show_other_links_cb = self.server.gui.add_checkbox(
+                "Show Other Links", initial_value=self.show_other_links
+            )
 
             # Sphere opacity controls with clearer names
             selected_sphere_opacity = self.server.gui.add_slider(
-                "Current Sphere", min=0.0, max=1.0, step=0.1, initial_value=self.selected_sphere_opacity
+                "Current Sphere",
+                min=0.0,
+                max=1.0,
+                step=0.1,
+                initial_value=self.selected_sphere_opacity,
             )
             unselected_spheres_opacity = self.server.gui.add_slider(
-                "Other Spheres (Same Link)", min=0.0, max=1.0, step=0.1, initial_value=self.unselected_spheres_opacity
+                "Other Spheres (Same Link)",
+                min=0.0,
+                max=1.0,
+                step=0.1,
+                initial_value=self.unselected_spheres_opacity,
             )
             other_links_spheres_opacity = self.server.gui.add_slider(
-                "Spheres (Other Links)", min=0.0, max=1.0, step=0.1, initial_value=self.other_links_spheres_opacity
+                "Spheres (Other Links)",
+                min=0.0,
+                max=1.0,
+                step=0.1,
+                initial_value=self.other_links_spheres_opacity,
             )
 
             # Store references for updates
@@ -216,7 +242,9 @@ class BubblifyApp:
 
             @other_links_spheres_opacity.on_update
             def _(_):
-                self.other_links_spheres_opacity = other_links_spheres_opacity.value
+                self.other_links_spheres_opacity = (
+                    other_links_spheres_opacity.value
+                )
                 self._update_sphere_opacities()
 
     def _setup_sphere_controls(self):
@@ -228,12 +256,16 @@ class BubblifyApp:
                 all_links = ["base_link"]
 
             # Link selection
-            link_dropdown = self.server.gui.add_dropdown("Link", options=all_links, initial_value=all_links[0])
+            link_dropdown = self.server.gui.add_dropdown(
+                "Link", options=all_links, initial_value=all_links[0]
+            )
             self.current_link = link_dropdown.value
             self._link_dropdown = link_dropdown  # Store reference for syncing
 
             # Sphere selection dropdown (will be populated based on selected link)
-            sphere_dropdown = self.server.gui.add_dropdown("Sphere", options=["None"], initial_value="None")
+            sphere_dropdown = self.server.gui.add_dropdown(
+                "Sphere", options=["None"], initial_value="None"
+            )
             self._sphere_dropdown = sphere_dropdown  # Store reference
 
             # Sphere creation and deletion
@@ -241,16 +273,24 @@ class BubblifyApp:
             delete_sphere_btn = self.server.gui.add_button("🗑️ Delete Selected")
 
             # Sphere statistics
-            total_sphere_count = self.server.gui.add_text("Total Spheres", initial_value="0")
-            link_sphere_count = self.server.gui.add_text("Spheres on Current Link", initial_value="0")
+            total_sphere_count = self.server.gui.add_text(
+                "Total Spheres", initial_value="0"
+            )
+            link_sphere_count = self.server.gui.add_text(
+                "Spheres on Current Link", initial_value="0"
+            )
 
             # Sphere properties
             # Adjust range so 0.05 is at 33% of the slider range
             # If 0.05 should be at 33%, then: 0.05 = min + 0.33 * (max - min)
             # Solving: max = (0.05 - min) / 0.33 + min
             # With min=0.005: max = (0.05 - 0.005) / 0.33 + 0.005 = 0.14
-            sphere_radius = self.server.gui.add_slider("Radius", min=0.005, max=0.14, step=0.001, initial_value=0.05)
-            sphere_color = self.server.gui.add_rgb("Color", initial_value=(255, 180, 60))
+            sphere_radius = self.server.gui.add_slider(
+                "Radius", min=0.005, max=0.14, step=0.001, initial_value=0.05
+            )
+            sphere_color = self.server.gui.add_rgb(
+                "Color", initial_value=(255, 180, 60)
+            )
             self._sphere_radius_slider = sphere_radius  # Store reference
             self._sphere_color_input = sphere_color  # Store reference
 
@@ -268,7 +308,9 @@ class BubblifyApp:
                     sphere_to_select = None
                     if self.current_sphere_id is not None:
                         # Try to keep current selection if it's still valid for this link
-                        current_sphere = self.sphere_store.by_id.get(self.current_sphere_id)
+                        current_sphere = self.sphere_store.by_id.get(
+                            self.current_sphere_id
+                        )
                         if current_sphere and current_sphere.link == link_name:
                             sphere_to_select = current_sphere
 
@@ -334,7 +376,9 @@ class BubblifyApp:
                 current_radius = sphere_radius.value  # Use radius from slider
 
                 # Add sphere at origin (revert to original single-sphere behavior)
-                sphere = self.sphere_store.add(link_name, xyz=(0.0, 0.0, 0.0), radius=current_radius)
+                sphere = self.sphere_store.add(
+                    link_name, xyz=(0.0, 0.0, 0.0), radius=current_radius
+                )
                 self._create_sphere_visualization(sphere)
 
                 # Select the new sphere as current
@@ -364,7 +408,10 @@ class BubblifyApp:
                 if self._updating_sphere_ui:
                     return
 
-                if self.current_sphere_id is not None and self.current_sphere_id in self.sphere_store.by_id:
+                if (
+                    self.current_sphere_id is not None
+                    and self.current_sphere_id in self.sphere_store.by_id
+                ):
                     sphere = self.sphere_store.by_id[self.current_sphere_id]
                     sphere.radius = float(sphere_radius.value)
                     sphere.color = tuple(int(c) for c in sphere_color.value)
@@ -389,11 +436,15 @@ class BubblifyApp:
                 default_name = f"{self.urdf_path.stem}_spherized"
 
             # Export name configuration (no paths, just filenames)
-            export_name_input = self.server.gui.add_text("Export Name", initial_value=default_name)
+            export_name_input = self.server.gui.add_text(
+                "Export Name", initial_value=default_name
+            )
 
             # Export options
             export_yml_btn = self.server.gui.add_button("Export Spheres (YAML)")
-            export_urdf_btn = self.server.gui.add_button("Export URDF with Spheres")
+            export_urdf_btn = self.server.gui.add_button(
+                "Export URDF with Spheres"
+            )
 
             # Status with error details (read-only)
             export_status = self.server.gui.add_markdown("Ready to export")
@@ -418,7 +469,9 @@ class BubblifyApp:
                         else:
                             center = [float(x) for x in center]
 
-                        collision_spheres[sphere.link].append({"center": center, "radius": float(sphere.radius)})
+                        collision_spheres[sphere.link].append(
+                            {"center": center, "radius": float(sphere.radius)}
+                        )
 
                     # Add metadata for import (ensure clean Python types)
                     data = {
@@ -437,8 +490,12 @@ class BubblifyApp:
                         output_dir = Path.cwd()
 
                     output_path = output_dir / f"{export_name_input.value}.yml"
-                    output_path.write_text(yaml.dump(data, default_flow_style=False, sort_keys=False))
-                    export_status.content = f"✅ Exported {len(self.sphere_store.by_id)} spheres"
+                    output_path.write_text(
+                        yaml.dump(data, default_flow_style=False, sort_keys=False)
+                    )
+                    export_status.content = (
+                        f"✅ Exported {len(self.sphere_store.by_id)} spheres"
+                    )
                     export_details.content = f"Saved to: {output_path.name}"
                     print(f"Exported spherization to {output_path.absolute()}")
 
@@ -456,7 +513,9 @@ class BubblifyApp:
             def _(_):
                 """Export URDF with collision spheres."""
                 try:
-                    urdf_xml = inject_spheres_into_urdf_xml(self.urdf_path, self.urdf, self.sphere_store)
+                    urdf_xml = inject_spheres_into_urdf_xml(
+                        self.urdf_path, self.urdf, self.sphere_store
+                    )
 
                     # Determine output directory (same as URDF or current working directory)
                     if self.urdf_path and self.urdf_path.parent:
@@ -471,7 +530,9 @@ class BubblifyApp:
                     print(f"Exported spherized URDF to {output_path.absolute()}")
 
                 except Exception as e:
-                    export_status.content = f"❌ URDF export failed: {type(e).__name__}"
+                    export_status.content = (
+                        f"❌ URDF export failed: {type(e).__name__}"
+                    )
                     export_details.content = str(e)
                     print(f"URDF export failed: {e}")
 
@@ -482,13 +543,17 @@ class BubblifyApp:
             # Get the link frame from enhanced URDF
             link_frame = self.urdf_viz.link_frame.get(sphere.link)
             if link_frame is not None:
-                self.sphere_store.group_nodes[sphere.link] = self.server.scene.add_frame(
-                    f"{link_frame.name}/spheres", show_axes=False
+                self.sphere_store.group_nodes[sphere.link] = (
+                    self.server.scene.add_frame(
+                        f"{link_frame.name}/spheres", show_axes=False
+                    )
                 )
             else:
                 # Fallback: create under spheres root
-                self.sphere_store.group_nodes[sphere.link] = self.server.scene.add_frame(
-                    f"/spheres/{sphere.link}", show_axes=False
+                self.sphere_store.group_nodes[sphere.link] = (
+                    self.server.scene.add_frame(
+                        f"/spheres/{sphere.link}", show_axes=False
+                    )
                 )
 
         parent_frame = self.sphere_store.group_nodes[sphere.link]
@@ -518,7 +583,9 @@ class BubblifyApp:
                 # IMPORTANT: Don't call update_sphere_dropdown here as it will override our selection
                 # Instead, manually update the sphere dropdown after link sync
                 if self._sphere_dropdown:
-                    spheres = self.sphere_store.get_spheres_for_link(self.current_link)
+                    spheres = self.sphere_store.get_spheres_for_link(
+                        self.current_link
+                    )
                     if spheres:
                         options = [f"Sphere {s.id}" for s in spheres]
                         self._sphere_dropdown.options = options
@@ -545,7 +612,10 @@ class BubblifyApp:
 
     def _update_transform_control(self):
         """Update transform control for the currently selected sphere."""
-        if self.current_sphere_id is not None and self.current_sphere_id in self.sphere_store.by_id:
+        if (
+            self.current_sphere_id is not None
+            and self.current_sphere_id in self.sphere_store.by_id
+        ):
             sphere = self.sphere_store.by_id[self.current_sphere_id]
 
             # Remove existing transform control
@@ -566,9 +636,16 @@ class BubblifyApp:
                 # Set up callback for transform updates
                 @self.transform_control.on_update
                 def _(_):
-                    if self.current_sphere_id is not None and self.current_sphere_id in self.sphere_store.by_id:
-                        current_sphere = self.sphere_store.by_id[self.current_sphere_id]
-                        current_sphere.local_xyz = tuple(self.transform_control.position)
+                    if (
+                        self.current_sphere_id is not None
+                        and self.current_sphere_id in self.sphere_store.by_id
+                    ):
+                        current_sphere = self.sphere_store.by_id[
+                            self.current_sphere_id
+                        ]
+                        current_sphere.local_xyz = tuple(
+                            self.transform_control.position
+                        )
                         self._update_sphere_visualization(current_sphere)
                         self._update_radius_gizmo()
 
@@ -590,7 +667,10 @@ class BubblifyApp:
         # Remove any previous gizmo
         self._remove_radius_gizmo()
 
-        if self.current_sphere_id is None or self.current_sphere_id not in self.sphere_store.by_id:
+        if (
+            self.current_sphere_id is None
+            or self.current_sphere_id not in self.sphere_store.by_id
+        ):
             return
 
         s = self.sphere_store.by_id[self.current_sphere_id]
@@ -621,7 +701,11 @@ class BubblifyApp:
         self.radius_gizmo = self.server.scene.add_transform_controls(
             gizmo_name,
             scale=0.4,  # Reduce size to be less prominent
-            active_axes=(True, False, False),  # Only X axis active (but now rotated)
+            active_axes=(
+                True,
+                False,
+                False,
+            ),  # Only X axis active (but now rotated)
             disable_sliders=True,
             disable_rotations=True,
             # Allow full range movement - no translation limits to enable zero radius
@@ -644,7 +728,11 @@ class BubblifyApp:
                 gizmo_pos_current[1] - s2.local_xyz[1],
                 gizmo_pos_current[2] - s2.local_xyz[2],
             )
-            new_radius = math.sqrt(center_to_gizmo[0] ** 2 + center_to_gizmo[1] ** 2 + center_to_gizmo[2] ** 2)
+            new_radius = math.sqrt(
+                center_to_gizmo[0] ** 2
+                + center_to_gizmo[1] ** 2
+                + center_to_gizmo[2] ** 2
+            )
             new_radius = max(0.0, new_radius)  # Allow zero radius
 
             # Update sphere radius
@@ -665,7 +753,10 @@ class BubblifyApp:
         # Set flag to prevent recursive updates
         self._updating_sphere_ui = True
 
-        if self.current_sphere_id is not None and self.current_sphere_id in self.sphere_store.by_id:
+        if (
+            self.current_sphere_id is not None
+            and self.current_sphere_id in self.sphere_store.by_id
+        ):
             sphere = self.sphere_store.by_id[self.current_sphere_id]
 
             # Update radius slider
@@ -688,7 +779,10 @@ class BubblifyApp:
     def _sync_link_selection(self):
         """Sync link selection between visibility controls and sphere editor."""
         # Sync visibility dropdown if different
-        if self._current_link_dropdown and self._current_link_dropdown.value != self.current_link:
+        if (
+            self._current_link_dropdown
+            and self._current_link_dropdown.value != self.current_link
+        ):
             self._current_link_dropdown.value = self.current_link
         # Sync sphere editor dropdown if different
         if self._link_dropdown and self._link_dropdown.value != self.current_link:
@@ -754,7 +848,11 @@ class BubblifyApp:
             total_loaded = 0
             for link_name, spheres_data in collision_spheres.items():
                 for sphere_data in spheres_data:
-                    sphere = self.sphere_store.add(link_name, xyz=tuple(sphere_data["center"]), radius=sphere_data["radius"])
+                    sphere = self.sphere_store.add(
+                        link_name,
+                        xyz=tuple(sphere_data["center"]),
+                        radius=sphere_data["radius"],
+                    )
                     self._create_sphere_visualization(sphere)
                     total_loaded += 1
 
@@ -770,8 +868,12 @@ class BubblifyApp:
         """Add a reference grid to the scene."""
         # Get scene bounds to position grid appropriately
         try:
-            trimesh_scene = self.urdf_viz._urdf.scene or self.urdf_viz._urdf.collision_scene
-            z_pos = trimesh_scene.bounds[0, 2] if trimesh_scene is not None else 0.0
+            trimesh_scene = (
+                self.urdf_viz._urdf.scene or self.urdf_viz._urdf.collision_scene
+            )
+            z_pos = (
+                trimesh_scene.bounds[0, 2] if trimesh_scene is not None else 0.0
+            )
         except:
             z_pos = 0.0
 

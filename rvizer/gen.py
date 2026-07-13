@@ -3,12 +3,22 @@ import yaml
 from scipy.spatial.transform import Rotation as R
 
 
+def yaml_write(data, fyaml):
+    with open(fyaml, "w") as f:
+        yaml.safe_dump(data, fyaml, default_flow_style=False, sort_keys=False)
+
+
+def yaml_read(fyaml):
+    with open(fyaml, "r") as f:
+        data = yaml.safe_load(f)
+    return data
+
+
 def generate_joint_trajectory():
     q0 = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
     q1 = np.array([3.14, 3.14, 3.14, 3.14, 3.14, 3.14])
     traj = np.linspace(0, 1, 100)
     q_traj = np.outer(1 - traj, q0) + np.outer(traj, q1)
-    print(f"==>> q_traj: \n{q_traj}")
 
     joint_names = [
         "joint1",
@@ -24,17 +34,9 @@ def generate_joint_trajectory():
     traj_dict["N"] = q_traj.shape[0]
     traj_dict["points"] = q_traj.tolist()
     traj_dict["time_from_start"] = (np.arange(q_traj.shape[0]) * 0.1).tolist()
-    print(f"==>> traj_dict: \n{traj_dict}")
 
-    yaml_file_path = "joint_trajectory.yaml"
-    with open(yaml_file_path, "w") as yaml_file:
-        yaml.safe_dump(
-            traj_dict, yaml_file, default_flow_style=False, sort_keys=False
-        )
-
-    with open(yaml_file_path, "r") as yaml_file:
-        traj_dict_rec = yaml.safe_load(yaml_file)
-        print(f"==>> traj_dict_rec: \n{traj_dict_rec}")
+    fyaml = "joint_trajectory.yaml"
+    yaml_write(traj_dict, fyaml)
 
 
 def pick_task_poses():
@@ -95,11 +97,8 @@ def generate_taskspace_poses():
     ts_dict["points"] = Xlist.tolist()
     ts_dict["N"] = Xlist.shape[0]
 
-    yaml_file_path = "taskspace_poses.yaml"
-    with open(yaml_file_path, "w") as yaml_file:
-        yaml.safe_dump(
-            ts_dict, yaml_file, default_flow_style=False, sort_keys=False
-        )
+    fyaml = "taskspace_poses.yaml"
+    yaml_write(ts_dict, fyaml)
 
 
 def generate_taskspace_tour():
@@ -115,11 +114,8 @@ def generate_taskspace_tour():
     ts_dict["points"] = Xlist.tolist()
     ts_dict["N"] = Xlist.shape[0]
 
-    yaml_file_path = "taskspace_poses_tour.yaml"
-    with open(yaml_file_path, "w") as yaml_file:
-        yaml.safe_dump(
-            ts_dict, yaml_file, default_flow_style=False, sort_keys=False
-        )
+    fyaml = "taskspace_poses_tour.yaml"
+    yaml_write(ts_dict, fyaml)
 
 
 if __name__ == "__main__":

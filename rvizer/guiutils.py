@@ -150,6 +150,17 @@ def load_taskspace_tour(path):
         return taskspace_tour
 
 
+def load_robot_config(path):
+    with open(path, "r") as yaml_file:
+        dict = yaml.safe_load(yaml_file)
+        robot_configs = {}
+        for config in dict:
+            mode = config["mode"]
+            joint_values = np.array(config["joint_values"])
+            robot_configs[mode] = joint_values
+        return robot_configs
+
+
 if __name__ == "__main__":
     colors = gen_color_interp(n=12)
     print(colors)
