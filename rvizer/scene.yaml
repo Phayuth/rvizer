@@ -52,7 +52,7 @@ robots_trajectories:
   - name: traj_1
     path: /joint_trajectory.yaml
   - name: traj_2
-    path: /joint_trajectory.yaml
+    path: /joint_trajectory2.yaml
 
 taskspaces:
   - name: taskspace_1
@@ -64,4 +64,4 @@ taskspace_tours:
   - name: tour_1
     path: /taskspace_poses_tour.yaml
   - name: tour_2
-    path: /taskspace_poses_tour.yaml
+    path: /taskspace_poses_tour2.yaml

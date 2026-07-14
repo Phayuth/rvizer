@@ -13,9 +13,9 @@ Package consists of mini-packages such as
 
 #### Dependencies
 ```
-viser v@1.10
-yourdfpy v@
-trimesh v@
+viser v@1.0.30
+yourdfpy v@0.0.60
+robot_descriptions v@1.21.0
 ```
 
 #### See Also

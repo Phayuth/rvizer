@@ -8,8 +8,10 @@ import threading
 import yaml
 from pathlib import Path
 from bubblify.core import EnhancedViserUrdf
-from rvizer.osutils import os_select_folder, os_list_directory, os_open_directory
-from rvizer.guiutils import (
+from rvizer.utils import (
+    os_select_folder,
+    os_list_directory,
+    os_open_directory,
     gen_color_interp,
     load_trajectory,
     load_taskspace,

@@ -353,7 +353,7 @@ class EnhancedViserUrdf:
                     color=mesh_color_override,
                 )
             elif len(mesh_color_override) == 4:
-                if mesh_color_override[0] is None: # handle set opacity only
+                if mesh_color_override[0] is None:  # handle set opacity only
                     mesh_handle = self._target.scene.add_mesh_simple(
                         name,
                         mesh.vertices,

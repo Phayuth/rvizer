@@ -16,19 +16,27 @@ class ComposeApp:
     def __init__(self, port=8080):
         self.server = viser.ViserServer(port=port)
 
-        urdf_path = Path("/rb3_730es_u/rb3_730es_u.urdf")
-        show_collision = True
+        # urdf_path = Path("/rb3_730es_u/rb3_730es_u_armright.urdf")
+        # urdf_path = Path("/humanoid_urdf/lift.urdf")
+        # urdf_path = Path("/humanoid_urdf/humanoid_urdf.urdf")
 
+        show_collision = True
         # Load URDF
-        if urdf_path is not None:
-            self.urdf = yourdfpy.URDF.load(
-                str(urdf_path),  # urdf_path,
-                build_scene_graph=True,
-                load_meshes=True,
-                build_collision_scene_graph=show_collision,
-                load_collision_meshes=show_collision,
-            )
-            self.urdf_path = urdf_path
+        # self.urdf = yourdfpy.URDF.load(
+        #     str(urdf_path),  # urdf_path,
+        #     build_scene_graph=True,
+        #     load_meshes=True,
+        #     build_collision_scene_graph=show_collision,
+        #     load_collision_meshes=show_collision,
+        # )
+        robot_name = "robotiq_2f85"
+        self.urdf = load_robot_description(
+            robot_name + "_description",
+            load_meshes=True,
+            build_scene_graph=True,
+            load_collision_meshes=show_collision,
+            build_collision_scene_graph=show_collision,
+        )
 
         # Enhanced URDF visualizer with per-link control
         self.urdf_viz = EnhancedViserUrdf(
@@ -38,6 +46,7 @@ class ComposeApp:
             load_collision_meshes=show_collision,
             collision_mesh_color_override=(1.0, 0.0, 0.0, 0.4),
         )
+        # self.urdf.base_link
 
         self.joint_sliders = []
         self._setup_robot_controls()
