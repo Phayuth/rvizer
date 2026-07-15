@@ -136,13 +136,14 @@ class ComposeApp:
 
             for h in link_handles:
 
-                @h.on_click
-                def _(event: viser.GuiEvent):
+                def handle_link_click(event: viser.GuiEvent, h=h):
                     event.client.add_notification(
                         f"Clicked on link: {h.name}",
                         body=f"Position: {h.position}, Orientation (wxyz): {h.wxyz}",
                         auto_close_seconds=3.0,
                     )
+
+                h.on_click(handle_link_click)
 
     def _setup_tf(self):
         print("Links:")
