@@ -7,6 +7,7 @@ import yaml
 from robot_descriptions.loaders.yourdfpy import load_robot_description
 from bubblify.core import EnhancedViserUrdf
 import pathlib
+from aljnu_robot_descriptions import ALJNU_DESCRIPTIONS
 
 
 class CollisionApp:
@@ -16,7 +17,7 @@ class CollisionApp:
 
         show_collision = True
         # Dynamics URDF
-        urdf_path = "/ur5e/ur5e_extract_calibrated_spherized.urdf"
+        urdf_path = ALJNU_DESCRIPTIONS["ur5e_sph"]
         self.robot_name = pathlib.Path(urdf_path).stem
         self.urdf = yourdfpy.URDF.load(
             str(urdf_path),
@@ -44,7 +45,7 @@ class CollisionApp:
         )
 
         # static URDF
-        env = "/rtsp_urdf/airbus_shopfloor.urdf"
+        env = ALJNU_DESCRIPTIONS["three_shelf"]
         self.env_name = pathlib.Path(env).stem
         self.urdf_env = yourdfpy.URDF.load(
             str(env),  # env,

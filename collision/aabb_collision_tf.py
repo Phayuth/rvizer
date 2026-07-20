@@ -3,8 +3,9 @@ import numpy as np
 import yaml
 import pathlib
 import viser.transforms as tf
+from aljnu_robot_descriptions import ALJNU_DESCRIPTIONS
 
-urdf_path = "/airbus_shopfloor.urdf"
+urdf_path = ALJNU_DESCRIPTIONS["airbus_shopfloor"]
 robot_name = pathlib.Path(urdf_path).stem  # get the filename without extension
 show_collision = True
 urdf = yourdfpy.URDF.load(
@@ -121,27 +122,40 @@ for i in range(len(boxes)):
     }
 
 
-class ListFlowDumper(yaml.Dumper):
-    def represent_sequence(self, tag, sequence, flow_style=None):
-        # Force all sequences/lists into flow style []
-        return super().represent_sequence(tag, sequence, flow_style=True)
-
-
 def gen_static_collision():
     data = {}
     data["robot_name"] = robot_name
-    data["link_names"] = link_names
+    data["links"] = link_names
     data["world_link"] = selected_as_world_link
     data["link_tf_in_world_link_xyz_wxyz"] = link_tf_in_world_link_xyz_wxyz
+    data["total_boxes"] = len(boxes)
     data["collision_in_world_link"] = aabbs
     with open(f"{robot_name}_collision.yaml", "w") as f:
-        yaml.dump(
-            data,
-            f,
-            Dumper=ListFlowDumper,
-            default_flow_style=False,
-            sort_keys=False,
-        )
+        yaml.dump(data, f, default_flow_style=False, sort_keys=False)
 
 
 gen_static_collision()
+
+# read collision
+with open("airbus_shopfloor_collision.yaml", "r") as f:
+    data = yaml.safe_load(f)
+
+n = len(data["collision_in_world_link"])
+box_in_base = np.zeros((n, 4, 4))
+boxsz_in_base = np.zeros((n, 3))
+
+collision_in_world_link = data["collision_in_world_link"]
+for i, (box_name, box_data) in enumerate(collision_in_world_link.items()):
+    link_name = box_data["link"]
+    center = np.array(box_data["center"])
+    size = np.array(box_data["size"])
+    print(f"Box {box_name}: link={link_name}, center={center}, size={size}")
+
+    H = np.eye(4)
+    H[:3, 3] = center
+    box_in_base[i] = H
+    boxsz_in_base[i] = size
+
+
+print(box_in_base)
+print(boxsz_in_base)
