@@ -6,39 +6,66 @@ import time
 import yaml
 from robot_descriptions.loaders.yourdfpy import load_robot_description
 from bubblify.core import EnhancedViserUrdf
+import pathlib
 
 
-class ComposeApp:
+class CollisionApp:
 
     def __init__(self, port=8080):
         self.srv = viser.ViserServer(port=port)
 
         show_collision = True
         # Dynamics URDF
-        self.robot_name = "panda"
-        self.urdf = load_robot_description(
-            self.robot_name + "_description",
-            load_meshes=True,
+        urdf_path = "/ur5e/ur5e_extract_calibrated_spherized.urdf"
+        self.robot_name = pathlib.Path(urdf_path).stem
+        self.urdf = yourdfpy.URDF.load(
+            str(urdf_path),
             build_scene_graph=True,
-            load_collision_meshes=show_collision,
+            load_meshes=True,
             build_collision_scene_graph=show_collision,
+            load_collision_meshes=show_collision,
         )
-
+        # self.robot_name = "panda"
+        # self.urdf = load_robot_description(
+        #     self.robot_name + "_description",
+        #     load_meshes=True,
+        #     build_scene_graph=True,
+        #     load_collision_meshes=show_collision,
+        #     build_collision_scene_graph=show_collision,
+        # )
         self.root_node_name = "/moving_base"
-        # Enhanced URDF visualizer with per-link control
         self.urdf_viz = EnhancedViserUrdf(
             self.srv,
             urdf_or_path=self.urdf,
             load_meshes=True,
             load_collision_meshes=show_collision,
-            collision_mesh_color_override=(1.0, 0.0, 0.0, 0.2),
+            collision_mesh_color_override=(1.0, 0.0, 0.0, 0.4),
             root_node_name=self.root_node_name,
+        )
+
+        # static URDF
+        env = "/rtsp_urdf/airbus_shopfloor.urdf"
+        self.env_name = pathlib.Path(env).stem
+        self.urdf_env = yourdfpy.URDF.load(
+            str(env),  # env,
+            build_scene_graph=True,
+            load_meshes=True,
+            build_collision_scene_graph=show_collision,
+            load_collision_meshes=show_collision,
+        )
+        self.urdf_env_viz = EnhancedViserUrdf(
+            self.srv,
+            urdf_or_path=self.urdf_env,
+            load_meshes=True,
+            load_collision_meshes=show_collision,
+            collision_mesh_color_override=(0.0, 1.0, 0.0, 0.4),
+            # root_node_name="/static_env",
         )
 
         self.joint_sliders = []
         self._setup_compose_config()
         self._setup_robot_controls()
-        # self._setup_env()
+        self._setup_env()
         self._setup_tf()
         self._setup_stack()
 
@@ -67,6 +94,7 @@ class ComposeApp:
     def _setup_robot_controls(self):
         """Setup robot configuration and visibility controls."""
         with self.srv.gui.add_folder("🤖 Robot Controls"):
+
             # Joint sliders
             initial_config = []
             for joint_name, (
@@ -136,14 +164,15 @@ class ComposeApp:
 
             btn_reset_base = self.srv.gui.add_button("🏠 Reset Base Position")
             base = self.srv.scene.add_frame(
-                "/moving_base",
+                self.root_node_name,
                 position=(0, 0, 0),
                 wxyz=(1, 0, 0, 0),
+                scale=0.3,
             )
             gizmo = self.srv.scene.add_transform_controls(
                 name="/gizmo",
-                scale=1.0,
-                active_axes=(True, True, False),
+                scale=0.3,
+                active_axes=(True, True, True),
             )
 
             @gizmo.on_update
@@ -190,12 +219,11 @@ class ComposeApp:
             update_robot_config()
 
     def _setup_env(self):
-        # link
-        link_names = [link.name for link in self.urdf.robot.links]
+        link_names = [link.name for link in self.urdf_env.robot.links]
         link_handles = []
         for i in range(len(link_names)):
             l = self.srv.scene.add_frame(
-                f"/{self.robot_name}/link_{link_names[i]}_frame",
+                f"/{self.env_name}/link_{link_names[i]}_frame",
                 position=(0, 0, 0),
                 wxyz=(1, 0, 0, 0),
                 scale=0.05,
@@ -215,11 +243,11 @@ class ComposeApp:
 
         def update_robot_config():
             config = np.array([])  # no actuated joints = 0
-            self.urdf_viz.update_cfg(config)
+            self.urdf_env_viz.update_cfg(config)
 
             for i, link_name in enumerate(link_names):
-                T_link_base = self.urdf.get_transform(
-                    link_name, self.urdf.base_link, collision_geometry=True
+                T_link_base = self.urdf_env.get_transform(
+                    link_name, self.urdf_env.base_link, collision_geometry=True
                 )
 
                 link_handles[i].position = T_link_base[:3, 3]
@@ -302,8 +330,11 @@ class ComposeApp:
 
 
 def test_compose_app():
-    app = ComposeApp(port=8080)
+    app = CollisionApp(port=8080)
     app.run()
+
+
+# def
 
 
 if __name__ == "__main__":
