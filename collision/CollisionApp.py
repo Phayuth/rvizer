@@ -8,6 +8,10 @@ from robot_descriptions.loaders.yourdfpy import load_robot_description
 from bubblify.core import EnhancedViserUrdf
 import pathlib
 from aljnu_robot_descriptions import ALJNU_DESCRIPTIONS
+from collision.taskspace_generate import (
+    airbus_shopfloor_taskspace_points,
+    single_stool_taskspace_points,
+)
 
 
 class CollisionApp:
@@ -35,6 +39,8 @@ class CollisionApp:
         #     build_collision_scene_graph=show_collision,
         # )
         self.root_node_name = "/moving_base"
+        self.root_position = (0.0, 0.0, 0.15)
+        self.root_wxyz = (1, 0, 0, 0)
         self.urdf_viz = EnhancedViserUrdf(
             self.srv,
             urdf_or_path=self.urdf,
@@ -45,7 +51,7 @@ class CollisionApp:
         )
 
         # static URDF
-        env = ALJNU_DESCRIPTIONS["three_shelf"]
+        env = ALJNU_DESCRIPTIONS["single_stool"]
         self.env_name = pathlib.Path(env).stem
         self.urdf_env = yourdfpy.URDF.load(
             str(env),  # env,
@@ -166,8 +172,8 @@ class CollisionApp:
             btn_reset_base = self.srv.gui.add_button("🏠 Reset Base Position")
             base = self.srv.scene.add_frame(
                 self.root_node_name,
-                position=(0, 0, 0),
-                wxyz=(1, 0, 0, 0),
+                position=self.root_position,
+                wxyz=self.root_wxyz,
                 scale=0.3,
             )
             gizmo = self.srv.scene.add_transform_controls(
@@ -255,6 +261,18 @@ class CollisionApp:
                 link_handles[i].wxyz = tf.SO3.from_matrix(T_link_base[:3, :3]).wxyz
 
         update_robot_config()
+
+        # find taskspace points
+        # position_array, wxyz_array = airbus_shopfloor_taskspace_points()
+        position_array, wxyz_array = single_stool_taskspace_points()
+
+        batched_axes = self.srv.scene.add_batched_axes(
+            name="/env_axes",
+            batched_positions=position_array,
+            batched_wxyzs=wxyz_array,
+            axes_length=0.1,
+            axes_radius=0.001,
+        )
 
     def _setup_tf(self):
         print("Links:")
