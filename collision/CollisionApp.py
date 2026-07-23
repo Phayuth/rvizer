@@ -51,7 +51,7 @@ class CollisionApp:
         )
 
         # static URDF
-        env = ALJNU_DESCRIPTIONS["single_stool"]
+        env = ALJNU_DESCRIPTIONS["airbus_shopfloor"]
         self.env_name = pathlib.Path(env).stem
         self.urdf_env = yourdfpy.URDF.load(
             str(env),  # env,
@@ -263,8 +263,10 @@ class CollisionApp:
         update_robot_config()
 
         # find taskspace points
-        # position_array, wxyz_array = airbus_shopfloor_taskspace_points()
-        position_array, wxyz_array = single_stool_taskspace_points()
+        position_array, wxyz_array = airbus_shopfloor_taskspace_points()
+        print(f"==>> position_array.shape: \n{position_array.shape}")
+        print(f"==>> wxyz_array.shape: \n{wxyz_array.shape}")
+        # position_array, wxyz_array = single_stool_taskspace_points()
 
         batched_axes = self.srv.scene.add_batched_axes(
             name="/env_axes",
