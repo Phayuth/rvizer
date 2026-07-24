@@ -123,3 +123,30 @@ def Xlist_to_Hlist(Xlist):
         H[:3, 3] = t
         Hlist.append(H)
     return np.array(Hlist)
+
+
+def Xlist_to_xyz_xyzw(Xlist):
+    xyz = Xlist[:, :3]
+    xyzw = Xlist[:, 3:]
+    return xyz, xyzw
+
+
+def Xlist_to_xyz_wxyz(Xlist):
+    xyz = Xlist[:, :3]
+    xyzw = Xlist[:, 3:]
+    wxyz = np.zeros_like(xyzw)
+    wxyz[:, 0] = xyzw[:, 3]  # w
+    wxyz[:, 1:] = xyzw[:, :3]  # xyz
+    return xyz, wxyz
+
+
+def Hlist_to_xyz_xyzw(Hlist):
+    Xlist = Hlist_to_Xlist(Hlist)
+    xyz, xyzw = Xlist_to_xyz_xyzw(Xlist)
+    return xyz, xyzw
+
+
+def Hlist_to_xyz_wxyz(Hlist):
+    Xlist = Hlist_to_Xlist(Hlist)
+    xyz, wxyz = Xlist_to_xyz_wxyz(Xlist)
+    return xyz, wxyz

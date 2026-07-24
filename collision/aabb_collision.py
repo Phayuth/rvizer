@@ -5,6 +5,7 @@ import yaml
 import pathlib
 import viser.transforms as tf
 from aljnu_robot_descriptions import ALJNU_DESCRIPTIONS, dir_urdfs
+from u import yaml_write, yaml_read
 import argparse
 
 np.set_printoptions(precision=4, suppress=True, linewidth=200)
@@ -70,7 +71,11 @@ def box_to_world_aabb(H_WL, H_LB, local_size):
 def transform_box_to_target_link_aabb(
     boxes_s, boxes_o, boxes_l, urdf: yourdfpy.URDF, target_link
 ):
-    # Target Link should be robot base link as we check collision from robot base link to target link
+    """
+    Target Link should be robot base link as robot arm collision is in base link.
+    Thus, all boxes and robot arm collision are defined in the same frame.
+    Thus, we can check collision between robot arm and boxes.
+    """
 
     aabbs = {}
     for i in range(len(boxes_s)):
@@ -148,14 +153,12 @@ def generate_static_collision(urdf: yourdfpy.URDF, target):
 def write_collision_data_to_yaml(data):
     name = data["metadata"]["name"]
     ff = os.path.join(dir_urdfs, f"{name}_collision.yaml")
-    with open(ff, "w") as f:
-        yaml.dump(data, f, default_flow_style=False, sort_keys=False)
+    yaml_write(data, ff)
 
 
 def verify_load_collision_data_from_yaml(name):
     ff = os.path.join(dir_urdfs, f"{name}_collision.yaml")
-    with open(ff, "r") as f:
-        data = yaml.safe_load(f)
+    data = yaml_read(ff)
 
     print(f"Loaded collision data for robot: {data['metadata']['name']}")
     print(f"Total boxes: {data['metadata']['total_boxes']}")
@@ -194,7 +197,7 @@ if __name__ == "__main__":
     # parser.add_argument("--robot-name", help="Name of the robot")
     # args = parser.parse_args()
 
-    urdf_path = ALJNU_DESCRIPTIONS["three_shelf"]
+    urdf_path = ALJNU_DESCRIPTIONS["airbus_shopfloor"]
     name = pathlib.Path(urdf_path).stem  # get the filename without extension
     show_collision = True
     urdf = yourdfpy.URDF.load(
@@ -205,6 +208,6 @@ if __name__ == "__main__":
         load_collision_meshes=show_collision,
     )
 
-    data = generate_static_collision(urdf, "world_link")
+    data = generate_static_collision(urdf, "robot_attach")
     write_collision_data_to_yaml(data)
     verify_load_collision_data_from_yaml(name)

@@ -11,6 +11,7 @@ from aljnu_robot_descriptions import ALJNU_DESCRIPTIONS
 from collision.taskspace_generate import (
     airbus_shopfloor_taskspace_points,
     single_stool_taskspace_points,
+    three_shelf_taskspace_points,
 )
 
 
@@ -264,8 +265,7 @@ class CollisionApp:
 
         # find taskspace points
         position_array, wxyz_array = airbus_shopfloor_taskspace_points()
-        print(f"==>> position_array.shape: \n{position_array.shape}")
-        print(f"==>> wxyz_array.shape: \n{wxyz_array.shape}")
+        # position_array, wxyz_array = three_shelf_taskspace_points()
         # position_array, wxyz_array = single_stool_taskspace_points()
 
         batched_axes = self.srv.scene.add_batched_axes(

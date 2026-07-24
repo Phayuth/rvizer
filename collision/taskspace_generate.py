@@ -1,7 +1,8 @@
+import os
 import numpy as np
 import viser.transforms as tf
-import scipy.spatial.transform as R
-from u import write_taskspace_poses
+from scipy.spatial.transform import Rotation as R
+from u import write_taskspace_poses, Hlist_to_xyz_wxyz
 
 
 def airbus_shopfloor_taskspace_points():
@@ -18,7 +19,7 @@ def airbus_shopfloor_taskspace_points():
     return position_array, wxyz_array
 
 
-def cube_surface_grid(bounds, N):
+def __cube_surface_grid(bounds, N):
     xmin, xmax, ymin, ymax, zmin, zmax = bounds
     x = np.linspace(xmin, xmax, N)
     y = np.linspace(ymin, ymax, N)
@@ -46,7 +47,7 @@ def cube_surface_grid(bounds, N):
     return pts
 
 
-def pose_from_surface_point(p):
+def __pose_from_surface_point(p):
     x, y, z = p
     eps = 1e-8
 
@@ -89,23 +90,15 @@ def pose_from_surface_point(p):
 
 
 def single_stool_taskspace_points():
-    # single_stool
     bounds = (-0.6, 0.6, -0.6, 0.6, 0.15, 0.75)  # x  # y  # z
-    pts = cube_surface_grid(bounds, N=10)
-    Hs = np.stack([pose_from_surface_point(p) for p in pts])
-    position_array = []
-    wxyz_array = []
-    for h in Hs:
-        Htf = tf.SE3.from_matrix(h)
-        wxyz_xyz = Htf.wxyz_xyz
-        position_array.append(wxyz_xyz[4:])
-        wxyz_array.append(wxyz_xyz[:4])
-
-    return np.array(position_array), np.array(wxyz_array)
+    pts = __cube_surface_grid(bounds, N=10)
+    Hs = np.stack([__pose_from_surface_point(p) for p in pts])
+    position_array, wxyz_array = Hlist_to_xyz_wxyz(Hs)
+    return position_array, wxyz_array
 
 
-def pick_task_poses():
-    def _gen_linear_H(s, e, quat, num_tasks=10):
+def three_shelf_taskspace_points():
+    def __gen_linear_H(s, e, quat, num_tasks=10):
         t = np.linspace(s, e, num_tasks)
         Hlist = [np.eye(4) for _ in range(num_tasks)]
         for i in range(num_tasks):
@@ -113,14 +106,14 @@ def pick_task_poses():
             Hlist[i][:3, :3] = R.from_quat(quat).as_matrix()
         return Hlist
 
-    def _Hrot_Z(a):
+    def __Hrot_Z(a):
         H = np.eye(4)
         c, s = np.cos(a), np.sin(a)
         H[0:3, 0:3] = [[c, -s, 0], [s, c, 0], [0, 0, 1]]
         return H
 
-    def _RotPI(H):
-        Hdh_to_urdf = _Hrot_Z(np.pi)
+    def __RotPI(H):
+        Hdh_to_urdf = __Hrot_Z(np.pi)
         return np.linalg.inv(Hdh_to_urdf) @ H
 
     size = 4
@@ -135,22 +128,27 @@ def pick_task_poses():
     HH = []
     for k in params:
         s, e, quat = params[k]
-        quat_noise = quat + np.random.normal(0, 0.05, size=4)
-        HH += _gen_linear_H(s, e, quat_noise, num_tasks=size)
+        quat_noise = quat + np.random.normal(0, 0.02, size=4)
+        HH += __gen_linear_H(s, e, quat_noise, num_tasks=size)
     Hlist = np.array(HH)
-    Hlist = np.array([_RotPI(H) for H in Hlist])
-    return Hlist
+    Hlist = np.array([__RotPI(H) for H in Hlist])
+    position_array, wxyz_array = Hlist_to_xyz_wxyz(Hlist)
+    return position_array, wxyz_array
 
 
 if __name__ == "__main__":
+    dir_rsrc = os.environ["RSRC_DIR"]
+    dir_rtsp = os.path.join(dir_rsrc, "rtsp_env")
+
     position_array, wxyz_array = single_stool_taskspace_points()
     poses = np.hstack([position_array, wxyz_array])
     write_taskspace_poses(
         poses=poses,
         base_link="stool",
         name="single_stool_taskspace_poses",
-        description="Taskspace poses for single stool surface",
+        description="Taskspace poses for single stool",
         standard="xyz_qwqxqyqz",
+        path=dir_rtsp,
     )
 
     position_array, wxyz_array = airbus_shopfloor_taskspace_points()
@@ -159,6 +157,18 @@ if __name__ == "__main__":
         poses=poses,
         base_link="stool",
         name="airbus_shopfloor_taskspace_poses",
-        description="Taskspace poses for airbus shopfloor surface",
+        description="Taskspace poses for airbus shopfloor",
         standard="xyz_qwqxqyqz",
+        path=dir_rtsp,
+    )
+
+    position_array, wxyz_array = three_shelf_taskspace_points()
+    poses = np.hstack([position_array, wxyz_array])
+    write_taskspace_poses(
+        poses=poses,
+        base_link="world_link",
+        name="three_shelf_taskspace_poses",
+        description="Taskspace poses for three shelf surronding robot",
+        standard="xyz_qwqxqyqz",
+        path=dir_rtsp,
     )
