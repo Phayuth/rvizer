@@ -52,7 +52,7 @@ class CollisionApp:
         )
 
         # static URDF
-        env = ALJNU_DESCRIPTIONS["airbus_shopfloor"]
+        env = ALJNU_DESCRIPTIONS["three_planar_board"]
         self.env_name = pathlib.Path(env).stem
         self.urdf_env = yourdfpy.URDF.load(
             str(env),  # env,
@@ -69,6 +69,10 @@ class CollisionApp:
             collision_mesh_color_override=(0.0, 1.0, 0.0, 0.4),
             # root_node_name="/static_env",
         )
+        # find taskspace points
+        # self.position_array, self.wxyz_array = airbus_shopfloor_taskspace_points()
+        # self.position_array, self.wxyz_array = three_shelf_taskspace_points()
+        self.position_array, self.wxyz_array = single_stool_taskspace_points()
 
         self.joint_sliders = []
         self._setup_compose_config()
@@ -263,15 +267,10 @@ class CollisionApp:
 
         update_robot_config()
 
-        # find taskspace points
-        position_array, wxyz_array = airbus_shopfloor_taskspace_points()
-        # position_array, wxyz_array = three_shelf_taskspace_points()
-        # position_array, wxyz_array = single_stool_taskspace_points()
-
         batched_axes = self.srv.scene.add_batched_axes(
             name="/env_axes",
-            batched_positions=position_array,
-            batched_wxyzs=wxyz_array,
+            batched_positions=self.position_array,
+            batched_wxyzs=self.wxyz_array,
             axes_length=0.1,
             axes_radius=0.001,
         )

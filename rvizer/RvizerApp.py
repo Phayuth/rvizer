@@ -189,6 +189,7 @@ class RvizerApp:
             # ------------------
             dd_config_modes = {}
             btng_configs = {}
+            trajs_name = [d["name"] for d in self.ss["robots_trajectories"]]
 
             # ------------------
             dd_trajs = {}
@@ -255,9 +256,7 @@ class RvizerApp:
                     # -----------------------------------
                     dd_trajs[r_name] = self.srv.gui.add_dropdown(
                         label="Trajectories",
-                        options=[
-                            d["name"] for d in self.ss["robots_trajectories"]
-                        ],
+                        options=trajs_name,
                         initial_value=self.ss["robots_trajectories"][0]["name"],
                     )
                     btng_players[r_name] = self.srv.gui.add_button_group(
@@ -345,7 +344,10 @@ class RvizerApp:
 
                     if action == "Load":
                         fyaml = (
-                            self.cwd + self.ss["robots_trajectories"][0]["path"]
+                            self.cwd
+                            + self.ss["robots_trajectories"][
+                                trajs_name.index(dd_trajs[r_name].value)
+                            ]["path"]
                         )
                         self.traj = load_trajectory(fyaml)
 
