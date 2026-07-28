@@ -123,28 +123,28 @@ if __name__ == "__main__":
         merge_dict = []
         urdf1 = {
             "prefix": "shelf_1_",
-            "urdf_path": ALJNU_DESCRIPTIONS["shelf"],
+            "urdf_path": ALJNU_DESCRIPTIONS.ENVS["shelf"],
             "position": [0.0, 0.75, 0.0],
             "wxyz": [0.0, 0.0, 0.0, 1.0],
         }
         merge_dict.append(urdf1)
         urdf2 = {
             "prefix": "shelf_2_",
-            "urdf_path": ALJNU_DESCRIPTIONS["shelf"],
+            "urdf_path": ALJNU_DESCRIPTIONS.ENVS["shelf"],
             "position": [0.0, -0.75, 0.0],
             "wxyz": [1.0, 0.0, 0.0, 0.0],
         }
         merge_dict.append(urdf2)
         urdf3 = {
             "prefix": "shelf_3_",
-            "urdf_path": ALJNU_DESCRIPTIONS["shelf"],
+            "urdf_path": ALJNU_DESCRIPTIONS.ENVS["shelf"],
             "position": [0.75, 0.0, 0.0],
             "wxyz": [0.70710678, 0.0, 0.0, 0.70710678],
         }
         merge_dict.append(urdf3)
         urdf4 = {
             "prefix": "plane_",
-            "urdf_path": ALJNU_DESCRIPTIONS["plane"],
+            "urdf_path": ALJNU_DESCRIPTIONS.ENVS["plane"],
             "position": [0.0, 0.0, 0.0],
             "wxyz": [1.0, 0.0, 0.0, 0.0],
         }

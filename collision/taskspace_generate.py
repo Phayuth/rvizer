@@ -136,6 +136,153 @@ def three_shelf_taskspace_points():
     return position_array, wxyz_array
 
 
+# *generate synthetic poses ----------------------------------------------
+def two_sided_taskspace_points():
+    y = np.linspace(-0.5, 0.5, 5)
+    z = np.linspace(-0.5, 0.5, 5)
+    Y, Z = np.meshgrid(y, z)
+    YZ = np.vstack([Y.ravel(), Z.ravel()]).T
+    x = np.full(YZ.shape[0], 0.42)
+    points1 = np.hstack([x[:, None], YZ])
+
+    points2 = points1.copy()
+    points2[:, 0] = -0.42
+
+    points = np.vstack([points1, points2])
+    n = points.shape[0]
+
+    Hlist = np.empty((n, 4, 4))
+    for i, p in enumerate(points):
+        H = np.eye(4)
+        H[0:3, 3] = p
+        Hlist[i] = H
+    position_array, wxyz_array = Hlist_to_xyz_wxyz(Hlist)
+    return position_array, wxyz_array
+
+
+def four_sided_noise_taskspace_points():
+    # add a bit of noise on rotation now cluster is not perfect, but we can still find the cluster
+    def _gen_linear_H(s, e, quat, num_tasks=10):
+        t = np.linspace(s, e, num_tasks)
+        Hlist = [np.eye(4) for _ in range(num_tasks)]
+        for i in range(num_tasks):
+            Hlist[i][:3, 3] = t[i]
+            Hlist[i][:3, :3] = R.from_quat(quat).as_matrix()
+        return Hlist
+
+    def _Hrot_Z(a):
+        H = np.eye(4)
+        c, s = np.cos(a), np.sin(a)
+        H[0:3, 0:3] = [[c, -s, 0], [s, c, 0], [0, 0, 1]]
+        return H
+
+    def _RotPI(H):
+        Hdh_to_urdf = _Hrot_Z(np.pi)
+        return np.linalg.inv(Hdh_to_urdf) @ H
+
+    def _RotPI2(H):
+        Hdh_to_urdf = _Hrot_Z(np.pi / 2)
+        return np.linalg.inv(Hdh_to_urdf) @ H
+
+    def _RotPI3(H):
+        Hdh_to_urdf = _Hrot_Z(3 * np.pi / 2)
+        return np.linalg.inv(Hdh_to_urdf) @ H
+
+    size = 4
+    params = {
+        0: ([0.5, 0.5, 0.6], [0.5, -0.5, 0.6], [0.0, 0.707106, 0.0, 0.707106]),
+        1: ([0.5, 0.5, 0.4], [0.5, -0.5, 0.4], [0.0, 0.707106, 0.0, 0.707106]),
+        2: ([0.5, 0.5, 0.2], [0.5, -0.5, 0.2], [0.0, 0.707106, 0.0, 0.707106]),
+        3: ([0.5, 0.5, 0.0], [0.5, -0.5, 0.0], [0.0, 0.707106, 0.0, 0.707106]),
+    }
+    HH = []
+    for k in params:
+        s, e, quat = params[k]
+        quat_noise = quat + np.random.normal(0, 0.05, size=4)
+        HH += _gen_linear_H(s, e, quat_noise, num_tasks=size)
+    GG = []
+    for h in HH:
+        GG.append(_RotPI(h))
+        GG.append(_RotPI2(h))
+        GG.append(_RotPI3(h))
+    Hlist = np.array(HH + GG)
+    position_array, wxyz_array = Hlist_to_xyz_wxyz(Hlist)
+    return position_array, wxyz_array
+
+
+def epGH_taskspace_points():
+    """Generates discrete set of poses to form the task space.
+    Generates discrete set of poses, manually defined here as uniform grid facing into the world -z direction with 45 deg offsets.
+    """
+
+    def transform_lookat(at, eye, up):
+        """Copied from OpenRAVE's transformLookat function in "geometry.h".
+
+        Returns an end effector transform matrix that looks along a ray with a desired up vector (corresponding to y axis of the end effector).
+        If up vector is parallel to ray, tries to use +y or +x direction instead.
+        If ray length is zero, chooses ray to be +z direction by default.
+
+        @param at the point space to look at, the camera will rotation and zoom around this point
+        @param eye the position of the camera in space
+        @param up desired end effector y axis direction
+        @return end effector transform matrix
+        """
+        vdir = np.array(at) - eye
+        if np.linalg.norm(vdir) > 1e-6:
+            vdir *= 1 / np.linalg.norm(vdir)
+        else:
+            vdir = [0.0, 0.0, 1.0]
+
+        vup = np.array(up) - vdir * np.dot(up, vdir)
+        if np.linalg.norm(vup) < 1e-8:
+            vup = [0.0, 1.0, 0.0]
+            vup -= vdir * np.dot(vdir, vup)
+            if np.linalg.norm(vup) < 1e-8:
+                vup = [1.0, 0.0, 0.0]
+                vup -= vdir * np.dot(vdir, vup)
+
+        vup *= 1 / np.linalg.norm(vup)
+        right = np.cross(vup, vdir)
+
+        rot_mat = np.transpose([right, vup, vdir])
+        H = [
+            list(rot_mat[0]) + [eye[0]],
+            list(rot_mat[1]) + [eye[1]],
+            list(rot_mat[2]) + [eye[2]],
+            [0, 0, 0, 1],
+        ]
+        return np.array(H)
+
+    Hlist = []
+    ats = [
+        [0.0, 0.0, -1.0],
+        [0.0, -1.0, -1.0],
+        [-1.0, 0.0, -1.0],
+        [0.0, 1.0, -1.0],
+        [1.0, 0.0, -1.0],
+    ]
+    up_vector = [-1.0, 0.0, 0.0]
+
+    step = 0.1
+    pos_x_list = np.arange(0.25, 0.85 + step, step)
+    pos_y_list = np.arange(-0.45, 0.45 + step, step)
+    pos_z_list = np.arange(0.15, 0.45 + step, step)
+
+    for pos_x in pos_x_list:
+        for pos_y in pos_y_list:
+            for pos_z in pos_z_list:
+                for at_offset in ats:
+                    eye = [pos_x, pos_y, pos_z]
+                    # 0.001 is because IKFast solution is singular for poses pointing directly in z axis
+                    at = [pos_x + 0.001, pos_y - 0.001, pos_z]
+                    at = [x + y for x, y in zip(at, at_offset)]
+                    H = transform_lookat(at, eye, up_vector)
+                    Hlist.append(H)
+    Hlist = np.array(Hlist)
+    position_array, wxyz_array = Hlist_to_xyz_wxyz(Hlist)
+    return position_array, wxyz_array
+
+
 if __name__ == "__main__":
     dir_rsrc = os.environ["RSRC_DIR"]
     dir_rtsp = os.path.join(dir_rsrc, "rtsp_env")

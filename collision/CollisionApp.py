@@ -12,6 +12,9 @@ from collision.taskspace_generate import (
     airbus_shopfloor_taskspace_points,
     single_stool_taskspace_points,
     three_shelf_taskspace_points,
+    two_sided_taskspace_points,
+    four_sided_noise_taskspace_points,
+    epGH_taskspace_points,
 )
 
 
@@ -22,7 +25,7 @@ class CollisionApp:
 
         show_collision = True
         # Dynamics URDF
-        urdf_path = ALJNU_DESCRIPTIONS["ur5e_sph"]
+        urdf_path = ALJNU_DESCRIPTIONS.ROBOTS["ur5e_sph"]
         self.robot_name = pathlib.Path(urdf_path).stem
         self.urdf = yourdfpy.URDF.load(
             str(urdf_path),
@@ -40,7 +43,7 @@ class CollisionApp:
         #     build_collision_scene_graph=show_collision,
         # )
         self.root_node_name = "/moving_base"
-        self.root_position = (0.0, 0.0, 0.15)
+        self.root_position = (0.0, 0.0, 0.0)
         self.root_wxyz = (1, 0, 0, 0)
         self.urdf_viz = EnhancedViserUrdf(
             self.srv,
@@ -52,7 +55,7 @@ class CollisionApp:
         )
 
         # static URDF
-        env = ALJNU_DESCRIPTIONS["three_planar_board"]
+        env = ALJNU_DESCRIPTIONS.ENVS["single_stool"]
         self.env_name = pathlib.Path(env).stem
         self.urdf_env = yourdfpy.URDF.load(
             str(env),  # env,
@@ -72,7 +75,9 @@ class CollisionApp:
         # find taskspace points
         # self.position_array, self.wxyz_array = airbus_shopfloor_taskspace_points()
         # self.position_array, self.wxyz_array = three_shelf_taskspace_points()
-        self.position_array, self.wxyz_array = single_stool_taskspace_points()
+        self.position_array, self.wxyz_array = epGH_taskspace_points()
+        self.position_offset = np.array([0.0, 0.0, 0.0])
+        self.position_array += self.position_offset
 
         self.joint_sliders = []
         self._setup_compose_config()
@@ -273,6 +278,8 @@ class CollisionApp:
             batched_wxyzs=self.wxyz_array,
             axes_length=0.1,
             axes_radius=0.001,
+            position=(0, 0, 0),
+            wxyz=(1, 0, 0, 0),
         )
 
     def _setup_tf(self):

@@ -54,6 +54,8 @@ class RvizerApp:
         # Task space state
         self.taskspace = None
         self.taskspace_tour = None
+        self.taskspace_position = (0.0, 0.0, 0.0)
+        self.taskspace_wxyz = (1.0, 0.0, 0.0, 0.0)
 
         # Gui Elements
         self._setup_cwd()
@@ -69,7 +71,7 @@ class RvizerApp:
             # gui handle
             t_cwd = self.srv.gui.add_text("CWD", initial_value=self.cwd)
             btng_dir = self.srv.gui.add_button_group(
-                label="Action", options=("Select", "Open", "View", "Init")
+                label="Action", options=("Select", "Open", "View", "Init", "Reset")
             )
             cwd_files = ""
 
@@ -104,6 +106,17 @@ class RvizerApp:
                     success = self._read_scene(self.cwd)
                     if not success:
                         return
+                    self._setup_robot()
+                    self._setup_env()
+                    self._setup_taskspace()
+                    self._setup_rtsp()
+                    self._setup_utilities()
+
+                elif action == "Reset":
+                    self.srv.scene.reset()
+                    self.srv.gui.reset()
+                    self._setup_cwd()
+                    self._setup_rvizer_config()
                     self._setup_robot()
                     self._setup_env()
                     self._setup_taskspace()
@@ -604,8 +617,6 @@ class RvizerApp:
                 initial_value=0.0,
             )
 
-            ts_handles = []
-
             def _handle_btng_tstour(event: viser.GuiEvent) -> None:
                 client = event.client
                 action = event.target.value
@@ -617,28 +628,46 @@ class RvizerApp:
                             tst_names.index(dd_tst.value)
                         ]["path"]
                     )
-                    self.taskspace_tour = load_taskspace_tour(fyaml)
-
-                    for i in range(self.taskspace_tour["N"]):
-                        pose = self.taskspace_tour["points"][i]
-                        position = pose[:3]
-                        if self.taskspace_tour["standard"] == "xyz_qxqyqzqw":
-                            # Convert to wxyz
-                            quat = np.array([pose[6], pose[3], pose[4], pose[5]])
-                        else:
-                            quat = np.array([pose[3], pose[4], pose[5], pose[6]])
-
-                        ts_h_ = self.srv.scene.add_frame(
-                            f"/task/tasks_tour/frame_{i}",
-                            position=position,
-                            wxyz=quat,
-                            axes_length=0.1,
-                            axes_radius=0.005,
+                    try:
+                        self.taskspace_tour = load_taskspace_tour(fyaml)
+                    except Exception as e:
+                        client.add_notification(
+                            title="Load Tour Failed",
+                            body=f"Failed to load tour: {e}",
+                            auto_close_seconds=5,
+                            with_close_button=True,
                         )
-                        ts_handles.append(ts_h_)
+                        return
+                    poses = np.array(self.taskspace_tour["points"])
 
-                    pose = self.taskspace_tour["points"]
-                    ts_position = pose[:, :3]  # shape (N, 3)
+                    # handle offset
+                    poses[:, :3] += np.array(self.taskspace_position)  # offset
+                    self.taskspace_tour["points"] = poses
+
+                    batched_positions = poses[:, :3]
+                    if self.taskspace_tour["standard"] == "xyz_qxqyqzqw":
+                        # Convert to wxyz
+                        batched_wxyzs = np.column_stack(
+                            (
+                                poses[:, 6],
+                                poses[:, 3],
+                                poses[:, 4],
+                                poses[:, 5],
+                            )
+                        )
+                    else:
+                        batched_wxyzs = poses[:, 3:7]
+
+                    batched_axes = self.srv.scene.add_batched_axes(
+                        name=f"/task/tasks_tour/batched_axes",
+                        batched_positions=batched_positions,
+                        batched_wxyzs=batched_wxyzs,
+                        axes_length=0.01,
+                        axes_radius=0.005,
+                    )
+
+                    poses = self.taskspace_tour["points"]
+                    ts_position = poses[:, :3]  # shape (N, 3)
                     ts_tour = self.taskspace_tour["order"]  # shape (N,)
                     ts_position_in_tour = ts_position[ts_tour]  # shape (N, 3)
 
@@ -657,7 +686,7 @@ class RvizerApp:
                         "/task/tasks_tour/tour_order",
                         points=points,
                         colors=colors,
-                        line_width=5,
+                        line_width=3,
                     )
                     self.srv.scene.add_label(
                         "/task/tasks_tour/tour_start",

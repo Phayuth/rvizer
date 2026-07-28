@@ -1,7 +1,6 @@
 import os
 import yourdfpy
 import numpy as np
-import yaml
 import pathlib
 import viser.transforms as tf
 from aljnu_robot_descriptions import ALJNU_DESCRIPTIONS, dir_urdfs
@@ -197,7 +196,7 @@ if __name__ == "__main__":
     # parser.add_argument("--robot-name", help="Name of the robot")
     # args = parser.parse_args()
 
-    urdf_path = ALJNU_DESCRIPTIONS["airbus_shopfloor"]
+    urdf_path = ALJNU_DESCRIPTIONS.ENVS["airbus_shopfloor"]
     name = pathlib.Path(urdf_path).stem  # get the filename without extension
     show_collision = True
     urdf = yourdfpy.URDF.load(
