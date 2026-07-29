@@ -15,6 +15,8 @@ from collision.taskspace_generate import (
     two_sided_taskspace_points,
     four_sided_noise_taskspace_points,
     epGH_taskspace_points,
+    inspect_stool_random_taskspace_points,
+    inspect_stool_taskspace_points,
 )
 
 
@@ -43,7 +45,7 @@ class CollisionApp:
         #     build_collision_scene_graph=show_collision,
         # )
         self.root_node_name = "/moving_base"
-        self.root_position = (0.0, 0.0, 0.0)
+        self.root_position = (0.0, 0.0, 0.15)
         self.root_wxyz = (1, 0, 0, 0)
         self.urdf_viz = EnhancedViserUrdf(
             self.srv,
@@ -55,7 +57,7 @@ class CollisionApp:
         )
 
         # static URDF
-        env = ALJNU_DESCRIPTIONS.ENVS["single_stool"]
+        env = ALJNU_DESCRIPTIONS.ENVS["inspect_stool"]
         self.env_name = pathlib.Path(env).stem
         self.urdf_env = yourdfpy.URDF.load(
             str(env),  # env,
@@ -75,9 +77,10 @@ class CollisionApp:
         # find taskspace points
         # self.position_array, self.wxyz_array = airbus_shopfloor_taskspace_points()
         # self.position_array, self.wxyz_array = three_shelf_taskspace_points()
-        self.position_array, self.wxyz_array = epGH_taskspace_points()
-        self.position_offset = np.array([0.0, 0.0, 0.0])
-        self.position_array += self.position_offset
+        self.position_array, self.wxyz_array = inspect_stool_taskspace_points()
+        # self.position_array, self.wxyz_array = epGH_taskspace_points()
+        # self.position_offset = np.array([0.0, 0.0, 0.0])
+        # self.position_array += self.position_offset
 
         self.joint_sliders = []
         self._setup_compose_config()
@@ -272,15 +275,16 @@ class CollisionApp:
 
         update_robot_config()
 
-        batched_axes = self.srv.scene.add_batched_axes(
-            name="/env_axes",
-            batched_positions=self.position_array,
-            batched_wxyzs=self.wxyz_array,
-            axes_length=0.1,
-            axes_radius=0.001,
-            position=(0, 0, 0),
-            wxyz=(1, 0, 0, 0),
-        )
+        if hasattr(self, "position_array") and hasattr(self, "wxyz_array"):
+            batched_axes = self.srv.scene.add_batched_axes(
+                name="/env_axes",
+                batched_positions=self.position_array,
+                batched_wxyzs=self.wxyz_array,
+                axes_length=0.1,
+                axes_radius=0.001,
+                position=(0, 0, 0),
+                wxyz=(1, 0, 0, 0),
+            )
 
     def _setup_tf(self):
         print("Links:")

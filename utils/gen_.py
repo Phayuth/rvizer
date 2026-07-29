@@ -34,6 +34,7 @@ def write_taskspace_poses(
     ts_dict = {}
     ts_dict["metadata"] = {}
     ts_dict["metadata"]["base_link"] = base_link
+    ts_dict["metadata"]["is_defined_in_robot_base_link"] = False
     ts_dict["metadata"]["name"] = name
     ts_dict["metadata"]["description"] = description
     ts_dict["metadata"]["standard"] = standard

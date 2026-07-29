@@ -5,7 +5,6 @@ import pathlib
 import viser.transforms as tf
 from aljnu_robot_descriptions import ALJNU_DESCRIPTIONS, dir_urdfs
 from u import yaml_write, yaml_read
-import argparse
 
 np.set_printoptions(precision=4, suppress=True, linewidth=200)
 
@@ -189,6 +188,8 @@ def verify_load_collision_data_from_yaml(name):
 
 
 if __name__ == "__main__":
+    import argparse
+
     # parser = argparse.ArgumentParser(
     #     description="Generate static collision data for a URDF robot."
     # )

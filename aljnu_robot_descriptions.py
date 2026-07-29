@@ -28,6 +28,7 @@ class ALJNU_DESCRIPTIONS:
         "single_bar_strict": join(_du, "single_bar_strict.urdf"),
         "three_planar_board": join(_du, "three_planar_board.urdf"),
         "stool_shelf": join(_du, "stool_shelf.urdf"),
+        "inspect_stool": join(_du, "inspect_stool.urdf"),
         "shelf": join(_du, "shelf.urdf"),
         "simple_box": join(_du, "simple_box.urdf"),
         "plane": join(_du, "plane.urdf"),
