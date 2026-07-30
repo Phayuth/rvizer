@@ -441,10 +441,10 @@ class RvizerApp:
 
                     if idx < len(time_from_start):
                         target_time = float(time_from_start[idx])
-                        sleep_time = max(target_time - prev_time, 0.02)
+                        sleep_time = max(target_time - prev_time, 0.0001)
                         prev_time = target_time
                     else:
-                        sleep_time = 0.05
+                        sleep_time = 0.01
 
                     time.sleep(sleep_time)
 
@@ -455,6 +455,7 @@ class RvizerApp:
 
         self._traj_btn_play_thread = threading.Thread(target=_run, daemon=True)
         self._traj_btn_play_thread.start()
+
 
     def _setup_env(self):
         eo_names = [d["name"] for d in self.ss["env_objects"]]

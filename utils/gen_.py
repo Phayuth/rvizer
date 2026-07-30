@@ -7,6 +7,8 @@ from u import yaml_write, yaml_read
 def write_taskspace_poses(
     poses,
     base_link,
+    is_in_robot=False,  # if True, the poses are expressed in the robot's base_link
+    robot_in_base_link=None,  # if is_in_robot is True, this is the TF
     name=None,
     description=None,
     standard="xyz_qxqyqzqw",
@@ -34,7 +36,8 @@ def write_taskspace_poses(
     ts_dict = {}
     ts_dict["metadata"] = {}
     ts_dict["metadata"]["base_link"] = base_link
-    ts_dict["metadata"]["is_defined_in_robot_base_link"] = False
+    ts_dict["metadata"]["is_in_robot"] = is_in_robot
+    ts_dict["metadata"]["robot_in_base_link"] = robot_in_base_link
     ts_dict["metadata"]["name"] = name
     ts_dict["metadata"]["description"] = description
     ts_dict["metadata"]["standard"] = standard
