@@ -135,13 +135,13 @@ if __name__ == "__main__":
             "wxyz": [1.0, 0.0, 0.0, 0.0],
         }
         merge_dict.append(urdf2)
-        urdf3 = {
-            "prefix": "shelf_3_",
-            "urdf_path": ALJNU_DESCRIPTIONS.ENVS["shelf"],
-            "position": [0.75, 0.0, 0.0],
-            "wxyz": [0.70710678, 0.0, 0.0, 0.70710678],
-        }
-        merge_dict.append(urdf3)
+        # urdf3 = {
+        #     "prefix": "shelf_3_",
+        #     "urdf_path": ALJNU_DESCRIPTIONS.ENVS["shelf"],
+        #     "position": [0.75, 0.0, 0.0],
+        #     "wxyz": [0.70710678, 0.0, 0.0, 0.70710678],
+        # }
+        # merge_dict.append(urdf3)
         urdf4 = {
             "prefix": "plane_",
             "urdf_path": ALJNU_DESCRIPTIONS.ENVS["plane"],
@@ -149,5 +149,6 @@ if __name__ == "__main__":
             "wxyz": [1.0, 0.0, 0.0, 0.0],
         }
         merge_dict.append(urdf4)
+        merge_urdfs(merge_dict, "two_shelf")
 
-        merge_urdfs(merge_dict, "three_shelf")
+    test_merge_urdfs()

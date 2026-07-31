@@ -17,6 +17,7 @@ from collision.taskspace_generate import (
     epGH_taskspace_points,
     inspect_stool_random_taskspace_points,
     inspect_stool_taskspace_points,
+    stool_shelf_taskspace_points,
 )
 
 
@@ -57,7 +58,7 @@ class CollisionApp:
         )
 
         # static URDF
-        env = ALJNU_DESCRIPTIONS.ENVS["inspect_stool"]
+        env = ALJNU_DESCRIPTIONS.ENVS["two_shelf"]
         self.env_name = pathlib.Path(env).stem
         self.urdf_env = yourdfpy.URDF.load(
             str(env),  # env,
@@ -75,10 +76,7 @@ class CollisionApp:
             # root_node_name="/static_env",
         )
         # find taskspace points
-        # self.position_array, self.wxyz_array = airbus_shopfloor_taskspace_points()
-        # self.position_array, self.wxyz_array = three_shelf_taskspace_points()
-        self.position_array, self.wxyz_array = inspect_stool_taskspace_points()
-        # self.position_array, self.wxyz_array = epGH_taskspace_points()
+        self.position_array, self.wxyz_array = stool_shelf_taskspace_points()
         # self.position_offset = np.array([0.0, 0.0, 0.0])
         # self.position_array += self.position_offset
 

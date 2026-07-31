@@ -389,6 +389,19 @@ def epGH_taskspace_points():
     return position_array, wxyz_array
 
 
+def stool_shelf_taskspace_points():
+    # stool_shelf
+    x = 0.6
+    y = np.linspace(-0.40, 0.40, 7)
+    z = np.linspace(0.15, 0.9, 3)
+    position_array = np.meshgrid(x, y, z)
+    position_array = np.stack(position_array, axis=-1).reshape(-1, 3)
+    xyzw = np.array([0.5000, -0.5000, 0.5000, -0.5000])
+    xyzw = xyzw / np.linalg.norm(xyzw)
+    wxyz_array = np.tile(xyzw, (position_array.shape[0], 1))
+    return position_array, wxyz_array
+
+
 if __name__ == "__main__":
     dir_rsrc = os.environ["RSRC_DIR"]
     dir_rtsp = os.path.join(dir_rsrc, "rtsp_env")

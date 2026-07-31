@@ -24,11 +24,13 @@ class ALJNU_DESCRIPTIONS:
     ENVS = {
         "airbus_shopfloor": join(_du, "airbus_shopfloor.urdf"),
         "three_shelf": join(_du, "three_shelf.urdf"),
+        "two_shelf": join(_du, "two_shelf.urdf"),
         "single_stool": join(_du, "single_stool.urdf"),
         "single_bar_strict": join(_du, "single_bar_strict.urdf"),
         "three_planar_board": join(_du, "three_planar_board.urdf"),
         "stool_shelf": join(_du, "stool_shelf.urdf"),
         "inspect_stool": join(_du, "inspect_stool.urdf"),
+        "stool_shelf_bar_strict": join(_du, "stool_shelf_bar_strict.urdf"),
         "shelf": join(_du, "shelf.urdf"),
         "simple_box": join(_du, "simple_box.urdf"),
         "plane": join(_du, "plane.urdf"),
