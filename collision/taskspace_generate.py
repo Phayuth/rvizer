@@ -4,9 +4,13 @@ from scipy.spatial.transform import Rotation as R
 from u import write_taskspace_poses, Hlist_to_xyz_wxyz
 
 
-def airbus_shopfloor_taskspace_points():
-    # airbus_shopfloor
-    # dont forget to offset z by 0.15 stool
+def airbus_shopfloor_taskspace_poses():
+    """
+    Description:
+    - Airbus shopfloor experiment from RoboTSP paper
+    - Dont forget to offset z by 0.15 stool
+    """
+
     x = 0.6
     y = np.linspace(-0.35, 0.35, 15)
     z = np.linspace(0.2, 0.9, 20)
@@ -18,7 +22,13 @@ def airbus_shopfloor_taskspace_points():
     return position_array, wxyz_array
 
 
-def single_stool_taskspace_points():
+def single_stool_taskspace_poses():
+    """
+    Description:
+    - Single stool experiment contain only the stool and floor collision
+    - Some taskpoint can not be reached due to being too far from the robot reach
+    - Dont forget to offset z by 0.15 stool
+    """
 
     def _cube_surface_grid(bounds, N):
         xmin, xmax, ymin, ymax, zmin, zmax = bounds
@@ -95,7 +105,180 @@ def single_stool_taskspace_points():
     return position_array, wxyz_array
 
 
-def three_shelf_taskspace_points():
+def single_stool_smaller_taskspace_poses():
+    """
+    Description:
+    - Single stool experiment contain only the stool and floor collision
+    - Smaller taskspace points
+    - Dont forget to offset z by 0.15 stool
+    """
+
+    def _cube_surface_grid(bounds, N):
+        xmin, xmax, ymin, ymax, zmin, zmax = bounds
+        x = np.linspace(xmin, xmax, N)
+        y = np.linspace(ymin, ymax, N)
+        z = np.linspace(zmin, zmax, N)
+        pts = []
+
+        # x = xmin, xmax
+        Y, Z = np.meshgrid(y, z, indexing="ij")
+        pts.append(np.c_[np.full(Y.size, xmin), Y.ravel(), Z.ravel()])
+        pts.append(np.c_[np.full(Y.size, xmax), Y.ravel(), Z.ravel()])
+
+        # y = ymin, ymax
+        X, Z = np.meshgrid(x, z, indexing="ij")
+        pts.append(np.c_[X.ravel(), np.full(X.size, ymin), Z.ravel()])
+        pts.append(np.c_[X.ravel(), np.full(X.size, ymax), Z.ravel()])
+
+        # z = zmin, zmax # top and bottom faces
+        # X, Y = np.meshgrid(x, y, indexing="ij")
+        # pts.append(np.c_[X.ravel(), Y.ravel(), np.full(X.size, zmin)])
+        # pts.append(np.c_[X.ravel(), Y.ravel(), np.full(X.size, zmax)])
+
+        pts = np.vstack(pts)
+        pts = np.unique(pts, axis=0)  # remove duplicate edges/corners
+
+        return pts
+
+    def _pose_from_surface_point(p):
+        x, y, z = p
+        eps = 1e-8
+
+        # Determine outward normal (z-axis of EE)
+        if np.isclose(x, -0.4):
+            z_axis = np.array([-1.0, 0.0, 0.0])
+        elif np.isclose(x, 0.4):
+            z_axis = np.array([1.0, 0.0, 0.0])
+        elif np.isclose(y, -0.4):
+            z_axis = np.array([0.0, -1.0, 0.0])
+        elif np.isclose(y, 0.4):
+            z_axis = np.array([0.0, 1.0, 0.0])
+        elif np.isclose(z, 0.15):
+            z_axis = np.array([0.0, 0.0, -1.0])
+        elif np.isclose(z, 0.75):
+            z_axis = np.array([0.0, 0.0, 1.0])
+        else:
+            raise ValueError("Point is not on cube surface.")
+
+        # Preferred EE y-axis (global down)
+        y_ref = np.array([0.0, 0.0, -1.0])
+
+        # Handle singularity
+        if abs(np.dot(z_axis, y_ref)) > 0.99:
+            y_ref = np.array([1.0, 0.0, 0.0])
+
+        # Right-handed frame
+        x_axis = np.cross(y_ref, z_axis)
+        x_axis /= np.linalg.norm(x_axis)
+
+        y_axis = np.cross(z_axis, x_axis)
+        y_axis /= np.linalg.norm(y_axis)
+
+        R = np.column_stack((x_axis, y_axis, z_axis))
+
+        H = np.eye(4)
+        H[:3, :3] = R
+        H[:3, 3] = p
+        return H
+
+    bounds = (-0.4, 0.4, -0.4, 0.4, 0.15, 0.75)  # x  # y  # z
+    pts = _cube_surface_grid(bounds, N=10)
+    Hs = np.stack([_pose_from_surface_point(p) for p in pts])
+    position_array, wxyz_array = Hlist_to_xyz_wxyz(Hs)
+    return position_array, wxyz_array
+
+
+def single_stool_smaller_fewer_taskspace_poses():
+    """
+    Description:
+    - Single stool experiment contain only the stool and floor collision
+    - Smaller and fewer taskspace points
+    - Dont forget to offset z by 0.15 stool
+    """
+
+    def _cube_surface_grid(bounds, N):
+        xmin, xmax, ymin, ymax, zmin, zmax = bounds
+        x = np.linspace(xmin, xmax, N)
+        y = np.linspace(ymin, ymax, N)
+        z = np.linspace(zmin, zmax, N)
+        pts = []
+
+        # x = xmin, xmax
+        Y, Z = np.meshgrid(y, z, indexing="ij")
+        pts.append(np.c_[np.full(Y.size, xmin), Y.ravel(), Z.ravel()])
+        pts.append(np.c_[np.full(Y.size, xmax), Y.ravel(), Z.ravel()])
+
+        # y = ymin, ymax
+        X, Z = np.meshgrid(x, z, indexing="ij")
+        pts.append(np.c_[X.ravel(), np.full(X.size, ymin), Z.ravel()])
+        pts.append(np.c_[X.ravel(), np.full(X.size, ymax), Z.ravel()])
+
+        # z = zmin, zmax # top and bottom faces
+        # X, Y = np.meshgrid(x, y, indexing="ij")
+        # pts.append(np.c_[X.ravel(), Y.ravel(), np.full(X.size, zmin)])
+        # pts.append(np.c_[X.ravel(), Y.ravel(), np.full(X.size, zmax)])
+
+        pts = np.vstack(pts)
+        pts = np.unique(pts, axis=0)  # remove duplicate edges/corners
+
+        return pts
+
+    def _pose_from_surface_point(p):
+        x, y, z = p
+        eps = 1e-8
+
+        # Determine outward normal (z-axis of EE)
+        if np.isclose(x, -0.4):
+            z_axis = np.array([-1.0, 0.0, 0.0])
+        elif np.isclose(x, 0.4):
+            z_axis = np.array([1.0, 0.0, 0.0])
+        elif np.isclose(y, -0.4):
+            z_axis = np.array([0.0, -1.0, 0.0])
+        elif np.isclose(y, 0.4):
+            z_axis = np.array([0.0, 1.0, 0.0])
+        elif np.isclose(z, 0.15):
+            z_axis = np.array([0.0, 0.0, -1.0])
+        elif np.isclose(z, 0.75):
+            z_axis = np.array([0.0, 0.0, 1.0])
+        else:
+            raise ValueError("Point is not on cube surface.")
+
+        # Preferred EE y-axis (global down)
+        y_ref = np.array([0.0, 0.0, -1.0])
+
+        # Handle singularity
+        if abs(np.dot(z_axis, y_ref)) > 0.99:
+            y_ref = np.array([1.0, 0.0, 0.0])
+
+        # Right-handed frame
+        x_axis = np.cross(y_ref, z_axis)
+        x_axis /= np.linalg.norm(x_axis)
+
+        y_axis = np.cross(z_axis, x_axis)
+        y_axis /= np.linalg.norm(y_axis)
+
+        R = np.column_stack((x_axis, y_axis, z_axis))
+
+        H = np.eye(4)
+        H[:3, :3] = R
+        H[:3, 3] = p
+        return H
+
+    bounds = (-0.4, 0.4, -0.4, 0.4, 0.15, 0.75)  # x  # y  # z
+    pts = _cube_surface_grid(bounds, N=5)
+    Hs = np.stack([_pose_from_surface_point(p) for p in pts])
+    position_array, wxyz_array = Hlist_to_xyz_wxyz(Hs)
+    return position_array, wxyz_array
+
+
+def three_shelf_taskspace_poses():
+    """
+    Description:
+    - Three shelf with minimal collision
+    - Smaller and fewer taskspace points
+    - Dont have to offset z
+    """
+
     def _gen_linear_H(s, e, quat, num_tasks=10):
         t = np.linspace(s, e, num_tasks)
         Hlist = [np.eye(4) for _ in range(num_tasks)]
@@ -134,7 +317,13 @@ def three_shelf_taskspace_points():
     return position_array, wxyz_array
 
 
-def inspect_stool_random_taskspace_points():
+def inspect_stool_random_taskspace_poses():
+    """
+    Description:
+    - Random taskpoint on hemisphere surface of radius 0.22m centered at (0.5, 0.0, 0.2)
+    - Dont forget to offset z by 0.15 stool
+    """
+
     x, y, z, r = 0.5, 0.0, 0.2, 0.22  # center and radius of hemisphere
     n = 500
     center = np.array([x, y, z])
@@ -183,11 +372,17 @@ def inspect_stool_random_taskspace_points():
     return position_array, wxyz_array
 
 
-def inspect_stool_taskspace_points():
+def inspect_stool_taskspace_poses():
+    """
+    Description:
+    - Organized taskpoint on hemisphere surface of radius 0.22m centered at (0.5, 0.0, 0.2)
+    - Dont forget to offset z by 0.15 stool
+    """
+
     x, y, z, r = 0.5, 0.0, 0.2, 0.22  # center and radius of hemisphere
     center = np.array([x, y, z])
 
-    def _hemisphere_surface_points(n_phi=8, n_theta_max=24):
+    def _hemisphere_surface_poses(n_phi=8, n_theta_max=24):
         points = []
         phis = np.linspace(0, np.pi / 2, n_phi)
         for phi in phis:
@@ -208,7 +403,7 @@ def inspect_stool_taskspace_points():
 
         return np.asarray(points)
 
-    points = _hemisphere_surface_points(n_phi=8, n_theta_max=24)
+    points = _hemisphere_surface_poses(n_phi=8, n_theta_max=24)
     n = points.shape[0]
 
     Hlist = []
@@ -243,7 +438,14 @@ def inspect_stool_taskspace_points():
     return position_array, wxyz_array
 
 
-def two_sided_taskspace_points():
+def two_sided_taskspace_poses():
+    """
+    Description:
+    - Two shelf with minimal collision
+    - Smaller and fewer taskspace points
+    - Dont have to offset z
+    """
+
     y = np.linspace(-0.5, 0.5, 5)
     z = np.linspace(-0.5, 0.5, 5)
     Y, Z = np.meshgrid(y, z)
@@ -266,7 +468,13 @@ def two_sided_taskspace_points():
     return position_array, wxyz_array
 
 
-def four_sided_noise_taskspace_points():
+def four_sided_noise_taskspace_poses():
+    """
+    Description:
+    - Fourside taskspoint
+    - Dont have to offset z
+    """
+
     # add a bit of noise on rotation now cluster is not perfect, but we can still find the cluster
     def _gen_linear_H(s, e, quat, num_tasks=10):
         t = np.linspace(s, e, num_tasks)
@@ -316,9 +524,11 @@ def four_sided_noise_taskspace_points():
     return position_array, wxyz_array
 
 
-def epGH_taskspace_points():
-    """Generates discrete set of poses to form the task space.
-    Generates discrete set of poses, manually defined here as uniform grid facing into the world -z direction with 45 deg offsets.
+def epGH_taskspace_poses():
+    """
+    Description:
+    - Generates discrete set of poses to form the task space.
+    - manually defined here as uniform grid facing into the world -z direction with 45 deg offsets.
     """
 
     def transform_lookat(at, eye, up):
@@ -389,7 +599,12 @@ def epGH_taskspace_points():
     return position_array, wxyz_array
 
 
-def stool_shelf_taskspace_points():
+def stool_shelf_taskspace_poses():
+    """
+    Description:
+    - Stool shelf taskspace points
+    - Dont forget to offset z by 0.15 stool
+    """
     # stool_shelf
     x = 0.6
     y = np.linspace(-0.40, 0.40, 7)
@@ -405,36 +620,145 @@ def stool_shelf_taskspace_points():
 if __name__ == "__main__":
     dir_rsrc = os.environ["RSRC_DIR"]
     dir_rtsp = os.path.join(dir_rsrc, "rtsp_env")
+    from pick import pick
 
-    position_array, wxyz_array = single_stool_taskspace_points()
+    title = "Choose taskspace_point to generate: "
+    dict_ts = {
+        "airbus_shopfloor_taskspace_poses": {
+            "func": airbus_shopfloor_taskspace_poses,
+            "base_link": "stool",
+            "is_in_robot": False,
+            "robot_in_base_link": [0.0, 0.0, 0.15, 1.0, 0.0, 0.0, 0.0],
+            "standard": "xyz_qwqxqyqz",
+        },
+        "single_stool_taskspace_poses": {
+            "func": single_stool_taskspace_poses,
+            "base_link": "stool",
+            "is_in_robot": False,
+            "robot_in_base_link": [0.0, 0.0, 0.15, 1.0, 0.0, 0.0, 0.0],
+            "standard": "xyz_qwqxqyqz",
+        },
+        "single_stool_smaller_taskspace_poses": {
+            "func": single_stool_smaller_taskspace_poses,
+            "base_link": "stool",
+            "is_in_robot": False,
+            "robot_in_base_link": [0.0, 0.0, 0.15, 1.0, 0.0, 0.0, 0.0],
+            "standard": "xyz_qwqxqyqz",
+        },
+        "single_stool_smaller_fewer_taskspace_poses": {
+            "func": single_stool_smaller_fewer_taskspace_poses,
+            "base_link": "stool",
+            "is_in_robot": False,
+            "robot_in_base_link": [0.0, 0.0, 0.15, 1.0, 0.0, 0.0, 0.0],
+            "standard": "xyz_qwqxqyqz",
+        },
+        "three_shelf_taskspace_poses": {
+            "func": three_shelf_taskspace_poses,
+            "base_link": "world_link",
+            "is_in_robot": True,
+            "robot_in_base_link": [0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0],
+            "standard": "xyz_qwqxqyqz",
+        },
+        "inspect_stool_random_taskspace_poses": {
+            "func": inspect_stool_random_taskspace_poses,
+            "base_link": "stool",
+            "is_in_robot": False,
+            "robot_in_base_link": [0.0, 0.0, 0.15, 1.0, 0.0, 0.0, 0.0],
+            "standard": "xyz_qwqxqyqz",
+        },
+        "inspect_stool_taskspace_poses": {
+            "func": inspect_stool_taskspace_poses,
+            "base_link": "stool",
+            "is_in_robot": False,
+            "robot_in_base_link": [0.0, 0.0, 0.15, 1.0, 0.0, 0.0, 0.0],
+            "standard": "xyz_qwqxqyqz",
+        },
+        "two_sided_taskspace_poses": {
+            "func": two_sided_taskspace_poses,
+            "base_link": "world_link",
+            "is_in_robot": True,
+            "robot_in_base_link": [0.0, 0.0, 0.15, 1.0, 0.0, 0.0, 0.0],
+            "standard": "xyz_qwqxqyqz",
+        },
+        "four_sided_noise_taskspace_poses": {
+            "func": four_sided_noise_taskspace_poses,
+            "base_link": "world_link",
+            "is_in_robot": True,
+            "robot_in_base_link": [0.0, 0.0, 0.15, 1.0, 0.0, 0.0, 0.0],
+            "standard": "xyz_qwqxqyqz",
+        },
+        "epGH_taskspace_poses": {
+            "func": epGH_taskspace_poses,
+            "base_link": "world_link",
+            "is_in_robot": False,
+            "robot_in_base_link": [0.0, 0.0, 0.15, 1.0, 0.0, 0.0, 0.0],
+            "standard": "xyz_qwqxqyqz",
+        },
+        "stool_shelf_taskspace_poses": {
+            "func": stool_shelf_taskspace_poses,
+            "base_link": "stool",
+            "is_in_robot": False,
+            "robot_in_base_link": [0.0, 0.0, 0.15, 1.0, 0.0, 0.0, 0.0],
+            "standard": "xyz_qwqxqyqz",
+        },
+    }
+
+    options = list(dict_ts.keys())
+    options.append("Exit")
+    selected, index = pick(options, title)
+    if selected == "Exit":
+        print("Exiting...")
+        exit(0)
+
+    print(f"Generating taskspace points for: {selected}")
+    position_array, wxyz_array = dict_ts[selected]["func"]()
     poses = np.hstack([position_array, wxyz_array])
+    base_link = dict_ts[selected]["base_link"]
+    name = dict_ts[selected]["func"].__name__
+    description = " ".join(dict_ts[selected]["func"].__doc__.split())  # str no \n
+    standard = dict_ts[selected]["standard"]
+    is_in_robot = dict_ts[selected]["is_in_robot"]
+    robot_in_base_link = dict_ts[selected]["robot_in_base_link"]
     write_taskspace_poses(
         poses=poses,
-        base_link="stool",
-        name="single_stool_taskspace_poses",
-        description="Taskspace poses for single stool",
-        standard="xyz_qwqxqyqz",
+        base_link=base_link,
+        is_in_robot=is_in_robot,
+        robot_in_base_link=robot_in_base_link,
+        name=name,
+        description=description,
+        standard=standard,
         path=dir_rtsp,
     )
 
-    position_array, wxyz_array = airbus_shopfloor_taskspace_points()
-    poses = np.hstack([position_array, wxyz_array])
-    write_taskspace_poses(
-        poses=poses,
-        base_link="stool",
-        name="airbus_shopfloor_taskspace_poses",
-        description="Taskspace poses for airbus shopfloor",
-        standard="xyz_qwqxqyqz",
-        path=dir_rtsp,
-    )
+    # position_array, wxyz_array = single_stool_taskspace_poses()
+    # poses = np.hstack([position_array, wxyz_array])
+    # write_taskspace_poses(
+    #     poses=poses,
+    #     base_link="stool",
+    #     name="single_stool_taskspace_poses",
+    #     description="Taskspace poses for single stool",
+    #     standard="xyz_qwqxqyqz",
+    #     path=dir_rtsp,
+    # )
 
-    position_array, wxyz_array = three_shelf_taskspace_points()
-    poses = np.hstack([position_array, wxyz_array])
-    write_taskspace_poses(
-        poses=poses,
-        base_link="world_link",
-        name="three_shelf_taskspace_poses",
-        description="Taskspace poses for three shelf surronding robot",
-        standard="xyz_qwqxqyqz",
-        path=dir_rtsp,
-    )
+    # position_array, wxyz_array = airbus_shopfloor_taskspace_poses()
+    # poses = np.hstack([position_array, wxyz_array])
+    # write_taskspace_poses(
+    #     poses=poses,
+    #     base_link="stool",
+    #     name="airbus_shopfloor_taskspace_poses",
+    #     description="Taskspace poses for airbus shopfloor",
+    #     standard="xyz_qwqxqyqz",
+    #     path=dir_rtsp,
+    # )
+
+    # position_array, wxyz_array = three_shelf_taskspace_poses()
+    # poses = np.hstack([position_array, wxyz_array])
+    # write_taskspace_poses(
+    #     poses=poses,
+    #     base_link="world_link",
+    #     name="three_shelf_taskspace_poses",
+    #     description="Taskspace poses for three shelf surronding robot",
+    #     standard="xyz_qwqxqyqz",
+    #     path=dir_rtsp,
+    # )

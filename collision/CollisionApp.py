@@ -9,15 +9,15 @@ from bubblify.core import EnhancedViserUrdf
 import pathlib
 from aljnu_robot_descriptions import ALJNU_DESCRIPTIONS
 from collision.taskspace_generate import (
-    airbus_shopfloor_taskspace_points,
-    single_stool_taskspace_points,
-    three_shelf_taskspace_points,
-    two_sided_taskspace_points,
-    four_sided_noise_taskspace_points,
-    epGH_taskspace_points,
-    inspect_stool_random_taskspace_points,
-    inspect_stool_taskspace_points,
-    stool_shelf_taskspace_points,
+    airbus_shopfloor_taskspace_poses,
+    single_stool_smaller_taskspace_poses,
+    three_shelf_taskspace_poses,
+    two_sided_taskspace_poses,
+    four_sided_noise_taskspace_poses,
+    epGH_taskspace_poses,
+    inspect_stool_random_taskspace_poses,
+    inspect_stool_taskspace_poses,
+    stool_shelf_taskspace_poses,
 )
 
 
@@ -76,7 +76,7 @@ class CollisionApp:
             # root_node_name="/static_env",
         )
         # find taskspace points
-        self.position_array, self.wxyz_array = stool_shelf_taskspace_points()
+        self.position_array, self.wxyz_array = stool_shelf_taskspace_poses()
         # self.position_offset = np.array([0.0, 0.0, 0.0])
         # self.position_array += self.position_offset
 

@@ -188,16 +188,25 @@ def verify_load_collision_data_from_yaml(name):
 
 
 if __name__ == "__main__":
-    import argparse
+    from pick import pick
 
-    # parser = argparse.ArgumentParser(
-    #     description="Generate static collision data for a URDF robot."
-    # )
-    # parser.add_argument("--urdf", help="Path to the URDF file")
-    # parser.add_argument("--robot-name", help="Name of the robot")
-    # args = parser.parse_args()
+    # pick urdf
+    titles = "Choose a robot URDF to generate static collision data: "
+    dict_urdfs = [
+        "airbus_shopfloor",
+        "three_shelf",
+        "single_stool",
+        "single_bar_strict",
+    ]
+    options = list(dict_urdfs)
+    options.append("Exit")
+    urdf_name, index = pick(options, titles)
+    if urdf_name == "Exit":
+        print("Exiting...")
+        exit(0)
+    urdf_path = ALJNU_DESCRIPTIONS.ENVS[urdf_name]
 
-    urdf_path = ALJNU_DESCRIPTIONS.ENVS["airbus_shopfloor"]
+    # load urdf
     name = pathlib.Path(urdf_path).stem  # get the filename without extension
     show_collision = True
     urdf = yourdfpy.URDF.load(
@@ -208,6 +217,26 @@ if __name__ == "__main__":
         load_collision_meshes=show_collision,
     )
 
-    data = generate_static_collision(urdf, "robot_attach")
-    write_collision_data_to_yaml(data)
-    verify_load_collision_data_from_yaml(name)
+    # pick target link
+    links_options = [link.name for link in urdf.robot.links]
+    links_options.append("Exit")
+    target_link, index = pick(
+        links_options,
+        "Choose a target link for collision data to be expressed in: ",
+    )
+    if target_link == "Exit":
+        print("Exiting...")
+        exit(0)
+
+    data = generate_static_collision(urdf, target_link)
+
+    # ask user if they want to save the collision data to a YAML file
+    save_options = ["Yes", "No"]
+    save_choice, index = pick(
+        save_options, "Do you want to save the collision data to a YAML file? "
+    )
+    if save_choice == "Yes":
+        write_collision_data_to_yaml(data)
+        verify_load_collision_data_from_yaml(name)
+    else:
+        print("Collision data not saved.")
