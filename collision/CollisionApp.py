@@ -18,6 +18,7 @@ from collision.taskspace_generate import (
     inspect_stool_random_taskspace_poses,
     inspect_stool_taskspace_poses,
     stool_shelf_taskspace_poses,
+    single_stool_mini_taskspace_poses,
 )
 
 
@@ -76,7 +77,7 @@ class CollisionApp:
             # root_node_name="/static_env",
         )
         # find taskspace points
-        self.position_array, self.wxyz_array = stool_shelf_taskspace_poses()
+        self.position_array, self.wxyz_array = single_stool_mini_taskspace_poses()
         # self.position_offset = np.array([0.0, 0.0, 0.0])
         # self.position_array += self.position_offset
 

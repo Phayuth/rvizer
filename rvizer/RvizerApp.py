@@ -593,29 +593,32 @@ class RvizerApp:
     def _setup_taskspace(self):
         with self.srv.gui.add_folder("Task Space"):
             # gui handle
-            ts_names = [d["name"] for d in self.ss["taskspaces"]]
-            dd_ts = self.srv.gui.add_dropdown(
+            self.ts_names = [d["name"] for d in self.ss["taskspaces"]]
+            self.ts_dd_ts = self.srv.gui.add_dropdown(
                 label="Poses",
-                options=ts_names,
-                initial_value=ts_names[0],
+                options=self.ts_names,
+                initial_value=self.ts_names[0],
             )
-            btng_tslad = self.srv.gui.add_button_group(
+            self.ts_btng_tslad = self.srv.gui.add_button_group(
                 label="Action", options=("Refresh", "Load", "Add", "Delete")
             )
 
-            # interaction handle
-            ts_handles = []
 
             def _handle_btng_tslad(event: viser.GuiEvent) -> None:
                 client = event.client
                 action = event.target.value
 
+                if action == "Refresh":
+                    self._read_scene(self.cwd)
+                    self.ts_names = [d["name"] for d in self.ss["taskspaces"]]
+                    self.ts_dd_ts.options = self.ts_names
+
                 if action == "Load":
                     fyaml = (
                         self.cwd
-                        + self.ss["taskspaces"][ts_names.index(dd_ts.value)][
-                            "path"
-                        ]
+                        + self.ss["taskspaces"][
+                            self.ts_names.index(self.ts_dd_ts.value)
+                        ]["path"]
                     )
                     self.taskspace = load_taskspace(fyaml)
 
@@ -626,25 +629,30 @@ class RvizerApp:
                         with_close_button=True,
                     )
 
-                    for i in range(self.taskspace["N"]):
-                        pose = self.taskspace["points"][i]
-                        position = pose[:3]
-                        if self.taskspace["standard"] == "xyz_qxqyqzqw":
-                            # Convert to wxyz
-                            quat = np.array([pose[6], pose[3], pose[4], pose[5]])
-                        else:
-                            quat = np.array([pose[3], pose[4], pose[5], pose[6]])
-
-                        ts_h_ = self.srv.scene.add_frame(
-                            f"/task/tasks/frame_{i}",
-                            position=position,
-                            wxyz=quat,
-                            axes_length=0.1,
-                            axes_radius=0.005,
+                    poses = np.array(self.taskspace["points"])
+                    batched_positions = poses[:, :3]
+                    if self.taskspace["standard"] == "xyz_qxqyqzqw":
+                        # Convert to wxyz
+                        batched_wxyzs = np.column_stack(
+                            (
+                                poses[:, 6],
+                                poses[:, 3],
+                                poses[:, 4],
+                                poses[:, 5],
+                            )
                         )
-                        ts_handles.append(ts_h_)
+                    else:
+                        batched_wxyzs = poses[:, 3:7]
 
-            btng_tslad.on_click(_handle_btng_tslad)
+                    batched_axes = self.srv.scene.add_batched_axes(
+                        name=f"/task/tasks_space/batched_axes",
+                        batched_positions=batched_positions,
+                        batched_wxyzs=batched_wxyzs,
+                        axes_length=0.1,
+                        axes_radius=0.005,
+                    )
+
+            self.ts_btng_tslad.on_click(_handle_btng_tslad)
 
     def _setup_rtsp(self):
         with self.srv.gui.add_folder("RTSP"):

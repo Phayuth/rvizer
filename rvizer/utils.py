@@ -255,7 +255,7 @@ def load_trajectory(path):
 def load_taskspace(path):
     with open(path, "r") as yaml_file:
         dict = yaml.safe_load(yaml_file)
-        standard = dict["standard"]
+        standard = dict["metadata"]["standard"]
         points = np.array(dict["points"])
         taskspace = {
             "standard": standard,

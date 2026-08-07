@@ -22,6 +22,88 @@ def airbus_shopfloor_taskspace_poses():
     return position_array, wxyz_array
 
 
+def single_stool_mini_taskspace_poses():
+    """
+    Description:
+    - Single stool experiment less taskspace points
+    - For testing the exact solver
+    """
+
+    def _cube_surface_grid(bounds, N):
+        xmin, xmax, ymin, ymax, zmin, zmax = bounds
+        x = np.linspace(xmin, xmax, N)
+        y = np.linspace(ymin, ymax, N)
+        z = np.linspace(zmin, zmax, N)
+        pts = []
+
+        # x = xmin, xmax
+        Y, Z = np.meshgrid(y, z, indexing="ij")
+        pts.append(np.c_[np.full(Y.size, xmin), Y.ravel(), Z.ravel()])
+        pts.append(np.c_[np.full(Y.size, xmax), Y.ravel(), Z.ravel()])
+
+        # y = ymin, ymax
+        X, Z = np.meshgrid(x, z, indexing="ij")
+        pts.append(np.c_[X.ravel(), np.full(X.size, ymin), Z.ravel()])
+        pts.append(np.c_[X.ravel(), np.full(X.size, ymax), Z.ravel()])
+
+        # z = zmin, zmax # top and bottom faces
+        # X, Y = np.meshgrid(x, y, indexing="ij")
+        # pts.append(np.c_[X.ravel(), Y.ravel(), np.full(X.size, zmin)])
+        # pts.append(np.c_[X.ravel(), Y.ravel(), np.full(X.size, zmax)])
+
+        pts = np.vstack(pts)
+        pts = np.unique(pts, axis=0)  # remove duplicate edges/corners
+
+        return pts
+
+    def _pose_from_surface_point(p):
+        x, y, z = p
+        eps = 1e-8
+
+        # Determine outward normal (z-axis of EE)
+        if np.isclose(x, -0.4):
+            z_axis = np.array([-1.0, 0.0, 0.0])
+        elif np.isclose(x, 0.4):
+            z_axis = np.array([1.0, 0.0, 0.0])
+        elif np.isclose(y, -0.4):
+            z_axis = np.array([0.0, -1.0, 0.0])
+        elif np.isclose(y, 0.4):
+            z_axis = np.array([0.0, 1.0, 0.0])
+        elif np.isclose(z, 0.15):
+            z_axis = np.array([0.0, 0.0, -1.0])
+        elif np.isclose(z, 0.75):
+            z_axis = np.array([0.0, 0.0, 1.0])
+        else:
+            raise ValueError("Point is not on cube surface.")
+
+        # Preferred EE y-axis (global down)
+        y_ref = np.array([0.0, 0.0, -1.0])
+
+        # Handle singularity
+        if abs(np.dot(z_axis, y_ref)) > 0.99:
+            y_ref = np.array([1.0, 0.0, 0.0])
+
+        # Right-handed frame
+        x_axis = np.cross(y_ref, z_axis)
+        x_axis /= np.linalg.norm(x_axis)
+
+        y_axis = np.cross(z_axis, x_axis)
+        y_axis /= np.linalg.norm(y_axis)
+
+        R = np.column_stack((x_axis, y_axis, z_axis))
+
+        H = np.eye(4)
+        H[:3, :3] = R
+        H[:3, 3] = p
+        return H
+
+    bounds = (-0.4, 0.4, -0.4, 0.4, 0.15, 0.75)  # x  # y  # z
+    pts = _cube_surface_grid(bounds, N=2)
+    Hs = np.stack([_pose_from_surface_point(p) for p in pts])
+    position_array, wxyz_array = Hlist_to_xyz_wxyz(Hs)
+    return position_array, wxyz_array
+
+
 def single_stool_taskspace_poses():
     """
     Description:
@@ -626,6 +708,13 @@ if __name__ == "__main__":
     dict_ts = {
         "airbus_shopfloor_taskspace_poses": {
             "func": airbus_shopfloor_taskspace_poses,
+            "base_link": "stool",
+            "is_in_robot": False,
+            "robot_in_base_link": [0.0, 0.0, 0.15, 1.0, 0.0, 0.0, 0.0],
+            "standard": "xyz_qwqxqyqz",
+        },
+        "single_stool_mini_taskspace_poses": {
+            "func": single_stool_mini_taskspace_poses,
             "base_link": "stool",
             "is_in_robot": False,
             "robot_in_base_link": [0.0, 0.0, 0.15, 1.0, 0.0, 0.0, 0.0],
